@@ -1,13 +1,584 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
   output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum Role {
+  PLATFORM_ADMIN // Can manage all organizations on the platform
+  TEACHER // Can manage classes, upload resources, create quizzes
+  STUDENT // Can join classes, view resources, take quizzes
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+enum DocumentStatus {
+  PENDING // Uploaded, waiting for text extraction
+  PROCESSING // Chunking and embedding generation in progress
+  READY // Available for RAG and Quiz generation
+  FAILED // Processing error
+}
+
+enum AssessmentType {
+  AI_GENERATED
+  TEACHER_CREATED
+  PRACTICE
+}
+
+enum AssessmentStatus {
+  DRAFT // Generated, waiting for teacher approval
+  PUBLISHED // Assigned / ready to take
+  ARCHIVED
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  SHORT_ANSWER
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  TIMED_OUT
+  EVALUATED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Identity & Tenancy
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique // e.g. "greenwood-high"
+  logoUrl     String?
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  memberships Membership[]
+  invitations OrgInvitation[]
+  classes     Class[]
+  topics      Topic[]
+  documents   Document[]
+  assessments Assessment[]
+
+  @@map("organizations")
+}
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  passwordHash    String? // Null for OAuth-only accounts
+  firstName       String
+  lastName        String
+  avatarUrl       String?
+  isEmailVerified Boolean   @default(false)
+  isPlatformAdmin Boolean   @default(false)
+  lastLoginAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  memberships        Membership[]
+  invitations        OrgInvitation[]     @relation("InvitedByUser")
+  createdClasses     Class[]             @relation("CreatedClasses")
+  enrollments        Enrollment[]
+  uploadedDocuments  Document[]          @relation("UploadedDocuments")
+  createdAssessments Assessment[]        @relation("CreatedAssessments")
+  assessmentAttempts AssessmentAttempt[]
+  conversations      Conversation[]
+  flashcardDecks     FlashcardDeck[]
+  channelMemberships ChannelMember[]
+  channelMessages    ChannelMessage[]
+  messageReceipts    MessageReceipt[]
+  announcements      Announcement[]      @relation("AuthorAnnouncements")
+
+  @@map("users")
+}
+
+model Membership {
+  id        String   @id @default(cuid())
+  role      Role
+  isActive  Boolean  @default(true)
+  joinedAt  DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Foreign keys
+  userId         String
+  organizationId String
+
+  // Relations
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@map("memberships")
+}
+
+model OrgInvitation {
+  id        String           @id @default(cuid())
+  email     String
+  role      Role
+  status    InvitationStatus @default(PENDING)
+  token     String           @unique @default(cuid())
+  expiresAt DateTime
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  // Foreign keys
+  organizationId String
+  invitedById    String
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy    User         @relation("InvitedByUser", fields: [invitedById], references: [id])
+
+  @@map("org_invitations")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Classroom Management
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Class {
+  id          String   @id @default(cuid())
+  name        String
+  code        String? // e.g. "BIO-101"
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Foreign keys
+  organizationId String
+  createdById    String
+
+  // Relations
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User                   @relation("CreatedClasses", fields: [createdById], references: [id])
+  enrollments    Enrollment[]
+  documents      Document[]
+  assessments    Assessment[]
+  assignments    AssessmentAssignment[]
+  conversations  Conversation[]
+  flashcardDecks FlashcardDeck[]
+  channels       Channel[]
+  announcements  Announcement[]
+
+  @@map("classes")
+}
+
+model Enrollment {
+  id       String   @id @default(cuid())
+  joinedAt DateTime @default(now())
+  isActive Boolean  @default(true)
+
+  // Foreign keys
+  classId String
+  userId  String
+
+  // Relations
+  class Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, userId])
+  @@map("enrollments")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Learning Content & RAG Documents
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Topic {
+  id             String   @id @default(cuid())
+  name           String
+  organizationId String
+  createdAt      DateTime @default(now())
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  questions    Question[]
+
+  @@unique([organizationId, name])
+  @@map("topics")
+}
+
+model Document {
+  id            String         @id @default(cuid())
+  title         String
+  fileUrl       String
+  fileType      String // 'pdf', 'docx', 'txt'
+  fileSizeBytes Int
+  status        DocumentStatus @default(PENDING)
+  pageCount     Int?
+  rawText       String?
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  // Foreign keys
+  organizationId String
+  classId        String
+  uploadedById   String
+
+  // Relations
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  class          Class           @relation(fields: [classId], references: [id], onDelete: Cascade)
+  uploadedBy     User            @relation("UploadedDocuments", fields: [uploadedById], references: [id])
+  chunks         DocumentChunk[]
+  assessments    Assessment[]
+  flashcardDecks FlashcardDeck[]
+
+  @@map("documents")
+}
+
+model DocumentChunk {
+  id         String                      @id @default(cuid())
+  chunkIndex Int
+  pageNumber Int?
+  content    String
+  tokenCount Int?
+  embedding  Unsupported("vector(768)")?
+  createdAt  DateTime                    @default(now())
+
+  // Foreign keys
+  documentId String
+
+  // Relations
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@map("document_chunks")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Assessments, Questions & Options
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Assessment {
+  id            String           @id @default(cuid())
+  title         String
+  description   String?
+  type          AssessmentType   @default(AI_GENERATED)
+  status        AssessmentStatus @default(DRAFT)
+  timeLimitMins Int?
+  passingScore  Float?
+  totalMarks    Float            @default(0)
+  isActive      Boolean          @default(true)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  // Foreign keys
+  organizationId String
+  classId        String
+  createdById    String
+  documentId     String?
+
+  // Relations
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  class          Class                  @relation(fields: [classId], references: [id], onDelete: Cascade)
+  createdBy      User                   @relation("CreatedAssessments", fields: [createdById], references: [id])
+  sourceDocument Document?              @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  questions      Question[]
+  assignments    AssessmentAssignment[]
+
+  @@map("assessments")
+}
+
+model Question {
+  id           String       @id @default(cuid())
+  prompt       String
+  questionType QuestionType @default(MULTIPLE_CHOICE)
+  marks        Float        @default(1.0)
+  explanation  String?
+  order        Int          @default(0)
+  createdAt    DateTime     @default(now())
+
+  // Foreign keys
+  assessmentId String
+  topicId      String?
+
+  // Relations
+  assessment Assessment         @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  topic      Topic?             @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  options    QuestionOption[]
+  responses  QuestionResponse[]
+
+  @@map("questions")
+}
+
+model QuestionOption {
+  id        String  @id @default(cuid())
+  text      String
+  isCorrect Boolean @default(false)
+  order     Int     @default(0)
+
+  // Foreign keys
+  questionId String
+
+  // Relations
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@map("question_options")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Assignments, Attempts & Results
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AssessmentAssignment {
+  id            String    @id @default(cuid())
+  startDate     DateTime  @default(now())
+  dueDate       DateTime?
+  maxAttempts   Int       @default(1)
+  revealScores  Boolean   @default(true)
+  revealAnswers Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+
+  // Foreign keys
+  assessmentId String
+  classId      String
+
+  // Relations
+  assessment Assessment          @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  class      Class               @relation(fields: [classId], references: [id], onDelete: Cascade)
+  attempts   AssessmentAttempt[]
+
+  @@map("assessment_assignments")
+}
+
+model AssessmentAttempt {
+  id            String        @id @default(cuid())
+  attemptNumber Int           @default(1)
+  status        AttemptStatus @default(IN_PROGRESS)
+  startedAt     DateTime      @default(now())
+  submittedAt   DateTime?
+  scoreAchieved Float?
+  scorePercent  Float?
+  timeSpentSecs Int?
+
+  // Foreign keys
+  assignmentId String
+  userId       String
+
+  // Relations
+  assignment AssessmentAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  user       User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  responses  QuestionResponse[]
+
+  @@map("assessment_attempts")
+}
+
+model QuestionResponse {
+  id               String   @id @default(cuid())
+  selectedOptionId String?
+  textResponse     String?
+  isCorrect        Boolean?
+  marksAwarded     Float    @default(0)
+  aiFeedback       String?
+  timeSpentSecs    Int?
+
+  // Foreign keys
+  attemptId  String
+  questionId String
+
+  // Relations
+  attempt  AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question Question          @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@map("question_responses")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI Conversations (RAG Document Chat) & Flashcards
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Conversation {
+  id        String   @id @default(cuid())
+  title     String   @default("Document Discussion")
+  createdAt DateTime @default(now())
+
+  // Foreign keys
+  userId     String
+  classId    String
+  documentId String?
+
+  // Relations
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  class    Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@map("conversations")
+}
+
+model Message {
+  id          String   @id @default(cuid())
+  senderRole  String // 'USER' | 'ASSISTANT'
+  content     String
+  sourcesJson String?
+  createdAt   DateTime @default(now())
+
+  // Foreign keys
+  conversationId String
+
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+model FlashcardDeck {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Foreign keys
+  userId     String
+  classId    String
+  documentId String? // Optional: source document for AI-generated decks
+
+  // Relations
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  class      Class       @relation(fields: [classId], references: [id], onDelete: Cascade)
+  document   Document?   @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  flashcards Flashcard[]
+
+  @@map("flashcard_decks")
+}
+
+model Flashcard {
+  id             String    @id @default(cuid())
+  front          String // Concept / Term / Question
+  back           String // Explanation / Answer
+  hint           String? // Optional hint shown before revealing back
+  masteryLevel   Int       @default(0) // 0=New, 1=Learning, 2=Familiar, 3=Mastered
+  lastReviewedAt DateTime?
+  nextReviewAt   DateTime?
+  createdAt      DateTime  @default(now())
+
+  // Foreign keys
+  deckId String
+
+  // Relations
+  deck FlashcardDeck @relation(fields: [deckId], references: [id], onDelete: Cascade)
+
+  @@map("flashcards")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Communication (Real-time Channels & Announcements)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Channel {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+
+  // Foreign keys
+  classId String
+
+  // Relations
+  class    Class            @relation(fields: [classId], references: [id], onDelete: Cascade)
+  members  ChannelMember[]
+  messages ChannelMessage[]
+
+  @@map("channels")
+}
+
+model ChannelMember {
+  id       String   @id @default(cuid())
+  joinedAt DateTime @default(now())
+
+  // Foreign keys
+  channelId String
+  userId    String
+
+  // Relations
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@map("channel_members")
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  createdAt DateTime @default(now())
+
+  // Foreign keys
+  classId  String
+  authorId String
+
+  // Relations
+  class  Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+  author User  @relation("AuthorAnnouncements", fields: [authorId], references: [id])
+
+  @@map("announcements")
+}
+
+model ChannelMessage {
+  id        String   @id @default(cuid())
+  content   String
+  isDeleted Boolean  @default(false)
+  isEdited  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Foreign keys
+  channelId String
+  senderId  String
+  parentId  String? // For threaded discussions
+
+  // Relations
+  channel  Channel          @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  sender   User             @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  parent   ChannelMessage?  @relation("ThreadReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies  ChannelMessage[] @relation("ThreadReplies")
+  receipts MessageReceipt[]
+
+  @@index([channelId])
+  @@index([parentId])
+  @@map("channel_messages")
+}
+
+model MessageReceipt {
+  id          String    @id @default(cuid())
+  deliveredAt DateTime?
+  readAt      DateTime?
+
+  // Foreign keys
+  messageId String
+  userId    String
+
+  // Relations
+  message ChannelMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@map("message_receipts")
 }

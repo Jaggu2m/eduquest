@@ -1,0 +1,14 @@
+Lecture 1: Foundations of Artificial Intelligence and Retrieval-Augmented Generation
+
+Artificial Intelligence (AI) encompasses various disciplines aimed at building systems capable of performing tasks that typically require human cognition. Among recent advances, Large Language Models (LLMs) represent a significant paradigm shift.
+
+LLMs are trained on massive text corpora to predict tokens in sequence. However, they suffer from knowledge cutoffs and hallucinations. To mitigate these weaknesses, Retrieval-Augmented Generation (RAG) is employed.
+
+Retrieval-Augmented Generation combines an external knowledge base with generative models. In a typical RAG pipeline, documents are ingested, converted into text chunks, and embedded into a vector space. When a query is submitted, relevant chunks are retrieved via semantic similarity and injected into the prompt context for the LLM.
+
+Key advantages of RAG include:
+1. Up-to-date domain specific knowledge without retraining or fine-tuning models.
+2. Traceability and citation of source documents for fact verification.
+3. Lower computational cost and latency compared to full retraining.
+
+In this course, students will build and evaluate end-to-end RAG pipelines, chunking strategies, embeddings, and automated assessment generators.
