@@ -17,7 +17,13 @@ export class FlashcardService {
    * @param {import('./embedding.service.js').EmbeddingService} deps.embeddingService
    * @param {import('./ai.service.js').AIService} deps.aiService
    */
-  constructor({ flashcardRepository, documentRepository, vectorRepository, embeddingService, aiService }) {
+  constructor({
+    flashcardRepository,
+    documentRepository,
+    vectorRepository,
+    embeddingService,
+    aiService,
+  }) {
     this.flashcardRepo = flashcardRepository;
     this.documentRepo = documentRepository;
     this.vectorRepo = vectorRepository;
@@ -39,7 +45,15 @@ export class FlashcardService {
    * @param {number} [params.numCards=10]
    * @param {string} [params.difficulty='MEDIUM']
    */
-  async generateDeck({ classId, userId, documentId, title, topic, numCards = 10, difficulty = 'MEDIUM' }) {
+  async generateDeck({
+    classId,
+    userId,
+    documentId,
+    title,
+    topic,
+    numCards = 10,
+    difficulty = 'MEDIUM',
+  }) {
     // 1. Load the source document
     const document = await this.documentRepo.findById(documentId);
     if (!document) throw Object.assign(new Error('Document not found.'), { statusCode: 404 });
@@ -60,11 +74,33 @@ export class FlashcardService {
       console.log(
         `[FlashcardService]: Using vector retrieval (query: "${query}", pages: ${pageCount}) for flashcard generation.`,
       );
-      const queryEmbedding = await this.embeddingService.embedText(query);
-      const chunks = await this.vectorRepo.findSimilarChunks({
-        embedding: queryEmbedding,
+      // Self-heal: backfill embeddings if missing
+      try {
+        const missing = await this.vectorRepo.findChunksWithoutEmbedding({
+          documentId,
+          limit: 100,
+        });
+        if (missing && missing.length > 0) {
+          const texts = missing.map((c) => c.content);
+          const embs = await this.embeddingService.generateBatchEmbeddings(texts);
+          for (let i = 0; i < missing.length; i++) {
+            if (embs[i]) {
+              const vecStr = this.embeddingService.vectorToString(embs[i]);
+              await this.vectorRepo.updateChunkEmbedding(missing[i].id, vecStr);
+            }
+          }
+        }
+      } catch (backfillErr) {
+        console.warn('[FlashcardService]: Backfill warning:', backfillErr.message);
+      }
+
+      const queryVector = await this.embeddingService.generateEmbedding(query);
+      const queryVectorStr = this.embeddingService.vectorToString(queryVector);
+      const chunks = await this.vectorRepo.searchSimilarChunks({
+        queryVector: queryVectorStr,
+        classId,
         documentId,
-        topK: 10,
+        limit: 10,
       });
       if (chunks.length === 0) {
         throw Object.assign(
@@ -84,7 +120,12 @@ export class FlashcardService {
     }
 
     // 3. Generate flashcards via Groq LLM
-    const cards = await this.aiService.generateFlashcards({ content, numCards, topic: topic ?? '', difficulty });
+    const cards = await this.aiService.generateFlashcards({
+      content,
+      numCards,
+      topic: topic ?? '',
+      difficulty,
+    });
 
     // 4. Persist the deck and its cards
     const deckTitle = title || `${document.title}${topic ? ` — ${topic}` : ''} Flashcards`;

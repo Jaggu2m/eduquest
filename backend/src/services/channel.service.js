@@ -1,3 +1,5 @@
+import { prisma } from '../lib/prismaClient.js';
+
 /**
  * ChannelService — Phase 10
  *
@@ -28,6 +30,7 @@ export class ChannelService {
 
   /**
    * Create a new channel for a class. Only teachers can create channels.
+   * Auto-adds the creator and all currently enrolled students to the channel.
    *
    * @param {object} params
    * @param {string} params.classId
@@ -36,11 +39,20 @@ export class ChannelService {
    * @param {string} [params.description]
    */
   async createChannel({ classId, userId, name, description }) {
-    // Authorization: only teacher (class creator) can create channels
     const cls = await this.classRepo.findById(classId);
     if (!cls) throw Object.assign(new Error('Class not found.'), { statusCode: 404 });
 
-    if (cls.createdById !== userId) {
+    const membership = await prisma.membership.findFirst({
+      where: { userId, organizationId: cls.organizationId, isActive: true },
+      select: { role: true },
+    });
+    const isTeacher =
+      cls.createdById === userId ||
+      membership?.role === 'TEACHER' ||
+      membership?.role === 'ADMIN' ||
+      membership?.role === 'OWNER';
+
+    if (!isTeacher) {
       throw Object.assign(
         new Error('Only the class teacher can create channels.'),
         { statusCode: 403 },
@@ -49,20 +61,58 @@ export class ChannelService {
 
     const channel = await this.channelRepo.create({ classId, name, description });
 
-    // Auto-add the teacher as the first member
-    await this.channelRepo.addMember(channel.id, userId);
+    // Auto-add the teacher as a member
+    await this.channelRepo.addMember(channel.id, userId).catch(() => {});
+
+    // Auto-add all enrolled students of the class to the new channel
+    const enrollments = await prisma.enrollment.findMany({
+      where: { classId, isActive: true },
+      select: { userId: true },
+    });
+    for (const e of enrollments) {
+      await this.channelRepo.addMember(channel.id, e.userId).catch(() => {});
+    }
 
     return channel;
   }
 
   /**
-   * List all channels a user is a member of within a class.
+   * List all channels for a class.
+   * If no channels exist for the class, auto-creates a default #general channel.
    *
    * @param {string} classId
    * @param {string} userId
    */
   async listChannels(classId, userId) {
-    return this.channelRepo.findByClass(classId, userId);
+    let channels = await this.channelRepo.findByClass(classId, userId);
+
+    // If the class has NO channels yet, auto-create a default #general channel
+    if (channels.length === 0) {
+      const cls = await this.classRepo.findById(classId);
+      if (cls) {
+        const defaultChannel = await this.channelRepo.create({
+          classId,
+          name: 'general',
+          description: 'General discussion for the class',
+        });
+
+        await this.channelRepo.addMember(defaultChannel.id, cls.createdById).catch(() => {});
+        const enrollments = await prisma.enrollment.findMany({
+          where: { classId, isActive: true },
+          select: { userId: true },
+        });
+        for (const e of enrollments) {
+          await this.channelRepo.addMember(defaultChannel.id, e.userId).catch(() => {});
+        }
+        if (userId) {
+          await this.channelRepo.addMember(defaultChannel.id, userId).catch(() => {});
+        }
+
+        channels = await this.channelRepo.findByClass(classId, userId);
+      }
+    }
+
+    return channels;
   }
 
   /**

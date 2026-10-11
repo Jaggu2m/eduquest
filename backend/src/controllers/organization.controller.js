@@ -45,7 +45,9 @@ export class OrganizationController {
   // POST /api/organizations — req.body already validated by Zod (CreateOrganizationSchema)
   createOrganization = async (req, res, next) => {
     try {
-      const org = await this.organizationService.createOrganization(req.body);
+      const userId = req.user?.userId || req.user?.id;
+      const role = req.user?.role || 'TEACHER';
+      const org = await this.organizationService.createOrganization(req.body, userId, role);
       res.status(201).json(org);
     } catch (error) {
       const message = error instanceof Error ? error.message : '';

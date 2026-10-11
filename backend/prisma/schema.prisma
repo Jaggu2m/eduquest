@@ -38,6 +38,7 @@ enum AssessmentType {
   AI_GENERATED
   TEACHER_CREATED
   PRACTICE
+  EXAM
 }
 
 enum AssessmentStatus {

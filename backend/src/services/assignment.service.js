@@ -52,12 +52,16 @@ export class AssignmentService {
       }
     }
 
+    // Set defaults based on assessment type
+    const isExam = assessment.type === 'EXAM';
+    const defaultMaxAttempts = isExam ? 1 : 999; // EXAM = 1, PRACTICE = unlimited
+
     return this.assignmentRepository.createAssignment({
       assessmentId: data.assessmentId,
       classId,
       startDate: data.startDate ? new Date(data.startDate) : new Date(),
       dueDate: data.dueDate ? new Date(data.dueDate) : null,
-      maxAttempts: data.maxAttempts || 1,
+      maxAttempts: data.maxAttempts || defaultMaxAttempts,
       revealScores: data.revealScores !== undefined ? data.revealScores : true,
       revealAnswers: data.revealAnswers !== undefined ? data.revealAnswers : false,
     });
@@ -69,7 +73,7 @@ export class AssignmentService {
    * @param {object} params
    * @returns {Promise<Array<object>>}
    */
-  async getAssignmentsByClass({ organizationId, classId }) {
+  async getAssignmentsByClass({ organizationId, classId, userId }) {
     const targetClass = await this.classRepository.findById(classId, organizationId);
     if (!targetClass) {
       const error = new Error('Class not found in this organization.');
@@ -77,7 +81,66 @@ export class AssignmentService {
       throw error;
     }
 
-    return this.assignmentRepository.findAssignmentsByClass(classId, organizationId);
+    // Auto-sync: ensure all published assessments have an active assignment record
+    const { assessments } = await this.assessmentRepository.findByClass(classId, organizationId, {
+      status: 'PUBLISHED',
+      limit: 100,
+    });
+
+    const existingAssignments = await this.assignmentRepository.findAssignmentsByClass(
+      classId,
+      organizationId,
+    );
+
+    const assignedIds = new Set(existingAssignments.map((a) => a.assessmentId));
+
+    for (const asmt of assessments || []) {
+      if (!assignedIds.has(asmt.id)) {
+        // Set maxAttempts based on assessment type
+        const isExam = asmt.type === 'EXAM';
+        await this.assignmentRepository.createAssignment({
+          assessmentId: asmt.id,
+          classId,
+          startDate: new Date(),
+          maxAttempts: isExam ? 1 : 999,
+          revealScores: true,
+          revealAnswers: !isExam, // Don't reveal answers for exams by default
+        });
+      }
+    }
+
+    // Re-fetch with user attempt data
+    const assignments = await this.assignmentRepository.findAssignmentsByClass(
+      classId,
+      organizationId,
+    );
+
+    // If userId is provided (student view), attach attempt info per assignment
+    if (userId) {
+      const enriched = await Promise.all(
+        assignments.map(async (asgn) => {
+          const userAttempts = await this.assignmentRepository.findUserAttempts(asgn.id, userId);
+          const completedAttempts = userAttempts.filter(
+            (a) => a.status === 'EVALUATED' || a.status === 'TIMED_OUT' || a.status === 'SUBMITTED',
+          );
+          const bestScore = completedAttempts.reduce(
+            (best, a) => Math.max(best, a.scorePercent || 0),
+            0,
+          );
+
+          return {
+            ...asgn,
+            userAttemptCount: userAttempts.length,
+            userCompletedCount: completedAttempts.length,
+            userBestScore: bestScore,
+            hasActiveAttempt: userAttempts.some((a) => a.status === 'IN_PROGRESS'),
+          };
+        }),
+      );
+      return enriched;
+    }
+
+    return assignments;
   }
 
   /**
@@ -120,6 +183,7 @@ export class AssignmentService {
     }
 
     const now = new Date();
+    const isExam = assignment.assessment.type === 'EXAM';
 
     // 1. Validate schedule window
     if (assignment.startDate && now < new Date(assignment.startDate)) {
@@ -153,7 +217,14 @@ export class AssignmentService {
       throw error;
     }
 
-    // 4. Create new attempt record
+    // 4. For EXAM type, check if already completed (extra guard for single attempt)
+    if (isExam && previousAttemptsCount > 0) {
+      const error = new Error('You have already completed this exam. Only one attempt is allowed.');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    // 5. Create new attempt record
     const attempt = await this.assignmentRepository.createAttempt({
       assignmentId,
       userId,
@@ -286,7 +357,7 @@ export class AssignmentService {
     }
 
     if (!isTeacher && attempt.userId !== userId) {
-      const error = new Error('Forbidden: You cannot view another student’s attempt.');
+      const error = new Error('Forbidden: You cannot view another student\u2019s attempt.');
       error.statusCode = 403;
       throw error;
     }
@@ -296,10 +367,14 @@ export class AssignmentService {
 
   /**
    * Strips correct answers, flags, and explanations before sending test to student.
+   * Also sends assessmentType and enforceFullscreen for the frontend.
    *
    * @private
    */
   _formatAttemptForStudent(attempt, assignment) {
+    const assessmentType = assignment.assessment.type || 'PRACTICE';
+    const isExam = assessmentType === 'EXAM';
+
     const sanitizedQuestions = assignment.assessment.questions.map((q) => ({
       id: q.id,
       prompt: q.prompt,
@@ -316,13 +391,17 @@ export class AssignmentService {
     }));
 
     return {
-      attemptId: attempt.id,
+      id: attempt.id, // used by frontend for submit URL
+      attemptId: attempt.id, // kept for backward compat
       attemptNumber: attempt.attemptNumber,
       status: attempt.status,
       startedAt: attempt.startedAt,
       timeLimitMins: assignment.assessment.timeLimitMins,
       totalMarks: assignment.assessment.totalMarks,
       assessmentTitle: assignment.assessment.title,
+      assessmentType, // 'PRACTICE' | 'EXAM'
+      enforceFullscreen: isExam, // Frontend uses this to enter fullscreen
+      preventTabSwitch: isExam, // Frontend uses this to detect tab switches
       questions: sanitizedQuestions,
     };
   }

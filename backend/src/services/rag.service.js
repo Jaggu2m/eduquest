@@ -1,3 +1,5 @@
+import { prisma } from '../lib/prismaClient.js';
+
 export class RagService {
   constructor({
     conversationRepository,
@@ -16,7 +18,7 @@ export class RagService {
   }
 
   /**
-   * Ensure user has access to the class (either class creator or enrolled student).
+   * Ensure user has access to the class (either class creator, org teacher, or enrolled student).
    */
   async _verifyClassAccess(classId, organizationId, user) {
     const classObj = await this.classRepository.findById(classId, organizationId);
@@ -26,13 +28,32 @@ export class RagService {
       throw err;
     }
 
-    if (user.isPlatformAdmin || classObj.createdById === user.id) {
+    if (
+      user.isPlatformAdmin ||
+      classObj.createdById === user.id ||
+      user.role === 'PLATFORM_ADMIN'
+    ) {
+      return classObj;
+    }
+
+    // Teachers belonging to the organization have access
+    const membership = await prisma.membership.findFirst({
+      where: {
+        userId: user.id,
+        organizationId,
+        isActive: true,
+      },
+    });
+
+    if (membership && (membership.role === 'TEACHER' || membership.role === 'PLATFORM_ADMIN')) {
       return classObj;
     }
 
     const enrollment = await this.classRepository.findEnrollment(classId, user.id);
     if (!enrollment || !enrollment.isActive) {
-      const err = new Error('You do not have access to this classroom.');
+      const err = new Error(
+        'You do not have access to this classroom. Please join or enroll first.',
+      );
       err.statusCode = 403;
       throw err;
     }

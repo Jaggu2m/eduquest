@@ -6,6 +6,8 @@ import { DOCUMENT_QUEUE_NAME } from '../queues/document.queue.js';
 import { prisma } from '../lib/prismaClient.js';
 import { chunkText } from '../utils/text-chunker.js';
 
+import { ocrPdfWithTesseract } from '../utils/ocr.js';
+
 /**
  * Extracts text and metadata from a file on disk.
  *
@@ -25,9 +27,29 @@ async function extractTextFromFile(filePath, fileType) {
     const parser = new PDFParse({ data: fileBuffer });
     const parsed = await parser.getText();
 
+    const rawText = (parsed.text || '').trim();
+    const pageCount = parsed.total || 1;
+    const density = rawText.length / pageCount;
+
+    // Detect if the PDF lacks a digital text layer (handwritten notes or scanned image)
+    const isHandwrittenOrScanned = density < 60;
+
+    if (isHandwrittenOrScanned) {
+      console.log(
+        `[worker:document]: Handwritten/scanned PDF detected (${rawText.length} chars over ${pageCount} pages, avg ${density.toFixed(1)} chars/page). Running Tesseract OCR...`,
+      );
+      await parser.destroy();
+      return await ocrPdfWithTesseract(filePath, { maxPages: 25 });
+    }
+
+    console.log(
+      `[worker:document]: Digital PDF detected (${rawText.length} chars over ${pageCount} pages, avg ${density.toFixed(1)} chars/page). Using direct text.`,
+    );
+
+    await parser.destroy();
     return {
-      rawText: parsed.text || '',
-      pageCount: parsed.total || 1,
+      rawText,
+      pageCount,
     };
   }
 

@@ -7,7 +7,7 @@ export class ClassController {
     try {
       const { orgId } = req.params;
       const activeOnly = req.query.active !== 'false';
-      const classes = await this.classService.getClasses(orgId, activeOnly);
+      const classes = await this.classService.getClasses(orgId, activeOnly, req.user);
       res.json(classes);
     } catch (error) {
       if (error.message.includes('not found')) {
@@ -143,6 +143,47 @@ export class ClassController {
         requestingUser: req.user,
       });
       res.json({ message: 'Student removed from class successfully' });
+    } catch (error) {
+      if (error.message.startsWith('Forbidden')) {
+        res.status(403).json({ message: error.message });
+      } else if (error.message.includes('not found')) {
+        res.status(404).json({ message: error.message });
+      } else {
+        res.status(400).json({ message: error.message });
+      }
+    }
+  };
+
+  joinClassByCode = async (req, res) => {
+    try {
+      const { orgId } = req.params;
+      const { code } = req.body;
+      const cls = await this.classService.joinClassByCode({
+        organizationId: orgId,
+        user: req.user,
+        code,
+      });
+      res.status(200).json({ message: 'Successfully joined class', class: cls });
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        res.status(404).json({ message: error.message });
+      } else {
+        res.status(400).json({ message: error.message });
+      }
+    }
+  };
+
+  leaveClass = async (req, res) => {
+    try {
+      const { orgId, classId } = req.params;
+      const userId = req.user.userId || req.user.id;
+      await this.classService.removeStudent({
+        classId,
+        organizationId: orgId,
+        studentUserId: userId,
+        requestingUser: req.user,
+      });
+      res.json({ message: 'Successfully left class' });
     } catch (error) {
       if (error.message.startsWith('Forbidden')) {
         res.status(403).json({ message: error.message });

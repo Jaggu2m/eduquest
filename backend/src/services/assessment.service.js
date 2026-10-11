@@ -1,3 +1,5 @@
+import { prisma } from '../lib/prismaClient.js';
+
 export class AssessmentService {
   constructor(
     assessmentRepository,
@@ -275,7 +277,46 @@ export class AssessmentService {
       throw error;
     }
 
-    return this.assessmentRepository.update(id, organizationId, data);
+    // Separate assessment-level fields from assignment-level scheduling fields
+    const { startDate, dueDate, ...assessmentData } = data;
+    const updated = await this.assessmentRepository.update(id, organizationId, assessmentData);
+
+    // When an assessment is published or updated with type/scheduling, sync the class assignment
+    const targetStatus = data.status || existing.status;
+    if (targetStatus === 'PUBLISHED') {
+      const targetType = data.type || existing.type;
+      const isExam = targetType === 'EXAM';
+
+      const existingAssignment = await prisma.assessmentAssignment.findFirst({
+        where: { assessmentId: id, classId: existing.classId },
+      });
+
+      if (!existingAssignment) {
+        await prisma.assessmentAssignment.create({
+          data: {
+            assessmentId: id,
+            classId: existing.classId,
+            startDate: startDate ? new Date(startDate) : new Date(),
+            dueDate: dueDate ? new Date(dueDate) : null,
+            maxAttempts: isExam ? 1 : 999,
+            revealScores: true,
+            revealAnswers: !isExam,
+          },
+        });
+      } else {
+        await prisma.assessmentAssignment.update({
+          where: { id: existingAssignment.id },
+          data: {
+            maxAttempts: isExam ? 1 : 999,
+            revealAnswers: !isExam,
+            ...(startDate !== undefined ? { startDate: startDate ? new Date(startDate) : new Date() } : {}),
+            ...(dueDate !== undefined ? { dueDate: dueDate ? new Date(dueDate) : null } : {}),
+          },
+        });
+      }
+    }
+
+    return updated;
   }
 
   /**

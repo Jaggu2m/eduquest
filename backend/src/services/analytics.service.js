@@ -238,12 +238,13 @@ export class AnalyticsService {
         weaknesses: [],
         topicMastery: [],
         attemptHistory: [],
+        recommendations: [],
       };
     }
 
     const scores = attempts.map((a) => a.scorePercent || 0);
     const totalScore = scores.reduce((sum, s) => sum + s, 0);
-    const averageScorePercent = Number((totalScore / attempts.length).toFixed(2));
+    const averageScorePercent = Number((totalScore / attempts.length).toFixed(1));
     const bestScorePercent = Math.max(...scores);
     const totalTimeSpentSecs = attempts.reduce((sum, a) => sum + (a.timeSpentSecs || 0), 0);
 
@@ -269,35 +270,62 @@ export class AnalyticsService {
     }
 
     const topicMastery = Array.from(studentTopics.values()).map((t) => {
-      const accuracyPercent = Number(((t.correct / t.total) * 100).toFixed(2));
+      const accuracyPercent = Number(((t.correct / t.total) * 100).toFixed(1));
       return {
+        topic: t.topicName,
         topicName: t.topicName,
         totalAnswered: t.total,
         correctCount: t.correct,
         accuracyPercent,
+        mastery: accuracyPercent,
       };
     });
 
     const strengths = topicMastery.filter((t) => t.accuracyPercent >= 75);
     const weaknesses = topicMastery.filter((t) => t.accuracyPercent < 60);
 
-    const attemptHistory = attempts.map((a) => ({
-      attemptId: a.id,
-      assessmentTitle: a.assignment?.assessment?.title,
-      scorePercent: a.scorePercent,
-      timeSpentSecs: a.timeSpentSecs,
-      submittedAt: a.submittedAt,
+    const attemptHistory = attempts.map((a) => {
+      const passingScore = a.assignment?.assessment?.passingScore ?? 60;
+      const score = a.scorePercent || 0;
+      return {
+        attemptId: a.id,
+        assessmentTitle: a.assignment?.assessment?.title || 'Assessment Quiz',
+        totalMarks: a.assignment?.assessment?.totalMarks,
+        scoreAchieved: a.scoreAchieved,
+        scorePercent: Math.round(score),
+        timeSpentSecs: a.timeSpentSecs,
+        submittedAt: a.submittedAt,
+        isPassed: score >= passingScore,
+      };
+    });
+
+    // Generate personalized study recommendations for this student
+    const recommendations = weaknesses.map((w) => ({
+      topic: w.topicName,
+      insight: `Your mastery in ${w.topicName} is ${w.accuracyPercent}%. Reviewing this topic will boost your overall confidence.`,
+      recommendedAction: `Focus on revision notes and try a practice quiz covering ${w.topicName}.`,
+      severity: w.accuracyPercent < 40 ? 'HIGH' : 'MEDIUM',
     }));
+
+    if (recommendations.length === 0 && attempts.length > 0) {
+      recommendations.push({
+        topic: 'Consistent Progress',
+        insight: `Great work! Your current average is ${averageScorePercent}%, showing strong command across topics.`,
+        recommendedAction: 'Continue your regular practice sessions to maintain this high standard.',
+        severity: 'LOW',
+      });
+    }
 
     return {
       totalAttempts: attempts.length,
       averageScorePercent,
-      bestScorePercent,
+      bestScorePercent: Math.round(bestScorePercent),
       totalTimeSpentSecs,
       strengths,
       weaknesses,
       topicMastery,
       attemptHistory,
+      recommendations,
     };
   }
 

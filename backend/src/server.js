@@ -2,15 +2,25 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import cors from 'cors';
+import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { prisma } from './lib/prismaClient.js';
 dotenv.config();
 const app = express();
 const httpServer = createServer(app); // Wrap Express with Node's http.Server
 const port = process.env.PORT || 3000;
+
+// Security middleware
+app.use(helmet());
 app.use(cors());
 app.use(express.json());
+
 import apiRoutes from './routes/index.js';
+import { apiLimiter } from './middleware/rate-limit.middleware.js';
+
+// Apply global rate limiting to all /api routes (more specific ones can be applied in routers)
+app.use('/api', apiLimiter);
+
 import { startDocumentWorker } from './workers/document.worker.js';
 import { documentQueue } from './queues/document.queue.js';
 import { startNotificationWorker } from './workers/notification.worker.js';

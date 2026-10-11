@@ -32,6 +32,7 @@
  */
 
 import { prisma } from '../lib/prismaClient.js';
+import jwt from 'jsonwebtoken';
 
 // In-memory presence store (replace with Redis for multi-server)
 // Map<userId, Set<socketId>>
@@ -56,20 +57,20 @@ function removeOnlineUser(userId, socketId) {
 }
 
 export function initSocketGateway(io) {
-  // Middleware: authenticate socket connections via JWT/session
+  // Middleware: authenticate socket connections via JWT token
   io.use(async (socket, next) => {
     try {
-      // Extract user from handshake (adapt to your auth strategy)
-      // For JWT: const token = socket.handshake.auth.token;
-      // For sessions: socket.request.session.user
-      const userId = socket.handshake.auth?.userId;
-      if (!userId) return next(new Error('Authentication required.'));
+      const token = socket.handshake.auth?.token;
+      if (!token) return next(new Error('Authentication required: no token provided.'));
 
-      // Attach user to socket
-      socket.userId = userId;
+      const secret = process.env.JWT_SECRET;
+      if (!secret) return next(new Error('Server misconfiguration: JWT_SECRET not set.'));
+
+      const payload = jwt.verify(token, secret);
+      socket.userId = payload.userId;
       next();
     } catch (err) {
-      next(new Error('Authentication failed.'));
+      next(new Error('Authentication failed: invalid or expired token.'));
     }
   });
 
@@ -91,15 +92,30 @@ export function initSocketGateway(io) {
     });
 
     // Join a specific channel room (called when user opens a channel)
-    socket.on('join:channel', (channelId) => {
+    // Frontend emits: channel:join
+    socket.on('channel:join', ({ channelId }) => {
+      if (!channelId) return;
       socket.join(`channel:${channelId}`);
       console.log(`[SocketGateway] ${userId} joined channel room: ${channelId}`);
     });
 
+    // Also support the alternative event name for compatibility
+    socket.on('join:channel', (channelId) => {
+      if (!channelId) return;
+      socket.join(`channel:${channelId}`);
+    });
+
     // Leave a channel room (called when user navigates away)
-    socket.on('leave:channel', (channelId) => {
+    // Frontend emits: channel:leave
+    socket.on('channel:leave', ({ channelId }) => {
+      if (!channelId) return;
       socket.leave(`channel:${channelId}`);
       console.log(`[SocketGateway] ${userId} left channel room: ${channelId}`);
+    });
+
+    socket.on('leave:channel', (channelId) => {
+      if (!channelId) return;
+      socket.leave(`channel:${channelId}`);
     });
 
     // ── Typing indicators ─────────────────────────────────────────────────────

@@ -15,6 +15,7 @@ import conversationRoutes from './conversation.routes.js';
 import flashcardRoutes from './flashcard.routes.js';
 
 import channelRoutes from './channel.routes.js';
+import { cacheRoute } from '../middleware/cache.middleware.js';
 
 // ── Dependency Injection (Composition Root) ──────────────────────────────────
 const classRepository = new ClassRepository();
@@ -44,7 +45,9 @@ router.use('/:classId/channels', channelRoutes);
 
 // ── Class Routes ─────────────────────────────────────────────────────────────
 router.get('/', classController.getClasses);
-router.get('/:classId', classController.getClassById);
+router.post('/join', classController.joinClassByCode);
+router.get('/:classId', cacheRoute(120), classController.getClassById); // Cache for 2 mins
+router.post('/:classId/leave', classController.leaveClass);
 router.post('/', validate(CreateClassSchema), classController.createClass);
 router.patch('/:classId', validate(UpdateClassSchema), classController.updateClass);
 router.delete('/:classId', classController.deleteClass);

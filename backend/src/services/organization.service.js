@@ -1,3 +1,5 @@
+import { prisma } from '../lib/prismaClient.js';
+
 // ── Implementation ────────────────────────────────────────────────────────────
 export class OrganizationService {
   constructor(organizationRepository) {
@@ -17,12 +19,23 @@ export class OrganizationService {
   }
 
   // 'fields' is already validated + stripped by Zod at the route level
-  async createOrganization(fields) {
+  async createOrganization(fields, userId, role = 'TEACHER') {
     const existing = await this.organizationRepository.findBySlug(fields.slug);
     if (existing) {
       throw new Error(`An organization with slug "${fields.slug}" already exists.`);
     }
-    return this.organizationRepository.create(fields);
+    const org = await this.organizationRepository.create(fields);
+    if (userId) {
+      await prisma.membership.create({
+        data: {
+          userId,
+          organizationId: org.id,
+          role: role === 'STUDENT' ? 'STUDENT' : 'TEACHER',
+          isActive: true,
+        },
+      });
+    }
+    return org;
   }
 
   // 'updates' is already validated + stripped by Zod at the route level

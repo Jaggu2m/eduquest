@@ -7,6 +7,7 @@ export const RegisterSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters.'),
   firstName: z.string().min(1, 'First name is required.'),
   lastName: z.string().min(1, 'Last name is required.'),
+  role: z.enum(['TEACHER', 'STUDENT']).default('STUDENT'),
 });
 
 export const LoginSchema = z.object({
@@ -110,7 +111,7 @@ export const UpdateDocumentSchema = z
 // ── Assessment & Quiz Generation ──────────────────────────────────────────────
 
 export const QuestionTypeEnum = z.enum(['MULTIPLE_CHOICE', 'TRUE_FALSE', 'SHORT_ANSWER']);
-export const AssessmentTypeEnum = z.enum(['AI_GENERATED', 'TEACHER_CREATED', 'PRACTICE']);
+export const AssessmentTypeEnum = z.enum(['AI_GENERATED', 'TEACHER_CREATED', 'PRACTICE', 'EXAM']);
 export const AssessmentStatusEnum = z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']);
 export const DifficultyEnum = z.enum(['EASY', 'MEDIUM', 'HARD']);
 
@@ -161,9 +162,12 @@ export const UpdateAssessmentSchema = z
     title: z.string().min(1).max(255).optional(),
     description: z.string().optional(),
     status: AssessmentStatusEnum.optional(),
+    type: AssessmentTypeEnum.optional(),
     timeLimitMins: z.coerce.number().int().positive().nullable().optional(),
     passingScore: z.coerce.number().min(0).max(100).nullable().optional(),
     isActive: z.boolean().optional(),
+    startDate: z.coerce.date().nullable().optional(),
+    dueDate: z.coerce.date().nullable().optional(),
   })
   .strict();
 

@@ -1,15 +1,46 @@
+import { prisma } from '../lib/prismaClient.js';
+
 export class AnalyticsController {
   constructor(analyticsService) {
     this.analyticsService = analyticsService;
   }
 
   /**
-   * Get high-level class overview metrics.
+   * Helper to determine whether the requesting user is a teacher or admin in this organization.
+   */
+  _isTeacherUser = async (req, orgId) => {
+    if (req.user?.isPlatformAdmin || req.user?.role === 'TEACHER') return true;
+    const userId = req.user?.userId || req.user?.id;
+    if (!userId || !orgId) return false;
+    try {
+      const membership = await prisma.membership.findFirst({
+        where: { userId, organizationId: orgId, isActive: true },
+        select: { role: true },
+      });
+      return (
+        membership?.role === 'TEACHER' ||
+        membership?.role === 'ADMIN' ||
+        membership?.role === 'OWNER' ||
+        membership?.role === 'PLATFORM_ADMIN'
+      );
+    } catch {
+      return false;
+    }
+  };
+
+  /**
+   * Get high-level class overview metrics (Teachers only).
    * GET /organizations/:orgId/classes/:classId/analytics/overview
    */
   getClassOverview = async (req, res) => {
     try {
       const { orgId, classId } = req.params;
+      const isTeacher = await this._isTeacherUser(req, orgId);
+      if (!isTeacher) {
+        return res.status(403).json({
+          message: 'Forbidden: Class-wide overview metrics are only accessible by teachers.',
+        });
+      }
 
       const overview = await this.analyticsService.getClassOverview({
         organizationId: orgId,
@@ -24,14 +55,20 @@ export class AnalyticsController {
   };
 
   /**
-   * Get topic mastery breakdown and at-risk topics.
+   * Get topic mastery breakdown and at-risk topics (Teachers only).
    * GET /organizations/:orgId/classes/:classId/analytics/topics
    */
   getClassTopics = async (req, res) => {
     try {
       const { orgId, classId } = req.params;
-      const { threshold } = req.query;
+      const isTeacher = await this._isTeacherUser(req, orgId);
+      if (!isTeacher) {
+        return res.status(403).json({
+          message: 'Forbidden: Class-wide topic mastery analytics are only accessible by teachers.',
+        });
+      }
 
+      const { threshold } = req.query;
       const topics = await this.analyticsService.getClassTopicMastery({
         organizationId: orgId,
         classId,
@@ -46,12 +83,18 @@ export class AnalyticsController {
   };
 
   /**
-   * Get question-level difficulty index and response stats.
+   * Get question-level difficulty index and response stats (Teachers only).
    * GET /organizations/:orgId/classes/:classId/analytics/questions
    */
   getClassQuestions = async (req, res) => {
     try {
       const { orgId, classId } = req.params;
+      const isTeacher = await this._isTeacherUser(req, orgId);
+      if (!isTeacher) {
+        return res.status(403).json({
+          message: 'Forbidden: Question difficulty analytics are only accessible by teachers.',
+        });
+      }
 
       const questions = await this.analyticsService.getClassQuestionDifficulty({
         organizationId: orgId,
@@ -73,10 +116,11 @@ export class AnalyticsController {
     try {
       const { orgId, classId, studentId } = req.params;
       const requestingUserId = req.user.userId || req.user.id;
-      const isTeacher = req.user.role === 'TEACHER' || req.user.isPlatformAdmin;
+      const targetUserId = studentId === 'me' ? requestingUserId : studentId;
+      const isTeacher = await this._isTeacherUser(req, orgId);
 
       // Access guard: Students can only view their own analytics
-      if (!isTeacher && requestingUserId !== studentId) {
+      if (!isTeacher && requestingUserId !== targetUserId) {
         return res
           .status(403)
           .json({ message: 'Forbidden: You cannot view another student’s analytics.' });
@@ -85,7 +129,7 @@ export class AnalyticsController {
       const analytics = await this.analyticsService.getStudentAnalytics({
         organizationId: orgId,
         classId,
-        userId: studentId,
+        userId: targetUserId,
       });
 
       return res.json(analytics);
@@ -96,12 +140,18 @@ export class AnalyticsController {
   };
 
   /**
-   * Get AI-generated teaching insights for the class.
+   * Get AI-generated teaching insights for the class (Teachers only).
    * GET /organizations/:orgId/classes/:classId/analytics/insights
    */
   getClassInsights = async (req, res) => {
     try {
       const { orgId, classId } = req.params;
+      const isTeacher = await this._isTeacherUser(req, orgId);
+      if (!isTeacher) {
+        return res.status(403).json({
+          message: 'Forbidden: Class teaching insights are only accessible by teachers.',
+        });
+      }
 
       const insightsData = await this.analyticsService.getTeachingInsights({
         organizationId: orgId,

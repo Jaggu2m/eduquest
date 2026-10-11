@@ -1,4 +1,5 @@
 import {} from 'express';
+import { prisma } from '../lib/prismaClient.js';
 
 export class AuthController {
   constructor(authService) {
@@ -35,10 +36,41 @@ export class AuthController {
     }
   };
 
-  // Returns the currently authenticated user (pulled from req.user by requireAuth middleware)
+  // Returns the currently authenticated user enriched with DB data
   me = async (req, res, _next) => {
-    res.status(200).json({ user: req.user });
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({ message: 'Unauthorized.' });
+      }
+
+      const dbUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          avatarUrl: true,
+          isPlatformAdmin: true,
+        },
+      });
+
+      if (!dbUser) {
+        return res.status(404).json({ message: 'User not found.' });
+      }
+
+      // Derive current role from memberships (same logic as login)
+      const role = await this.authService.deriveRole(userId, req.user?.role || 'STUDENT');
+
+      return res.status(200).json({
+        user: {
+          ...dbUser,
+          role,
+        },
+      });
+    } catch (error) {
+      _next(error);
+    }
   };
 }
-
-//# sourceMappingURL=auth.controller.js.map

@@ -22,7 +22,11 @@ export function requireAuth(req, res, next) {
   }
   try {
     const payload = jwt.verify(token, secret);
-    req.user = payload;
+    req.user = {
+      ...payload,
+      id: payload.userId || payload.id,
+      userId: payload.userId || payload.id,
+    };
     next();
   } catch {
     res.status(401).json({ message: 'Unauthorized: invalid or expired token.' });

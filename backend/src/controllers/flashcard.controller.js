@@ -18,7 +18,7 @@ export class FlashcardController {
   async generateDeck(req, res, next) {
     try {
       const { classId } = req.params;
-      const userId = req.user.id;
+      const userId = req.user.userId || req.user.id;
       const { documentId, title, topic, numCards, difficulty } = req.body;
 
       const deck = await this.flashcardService.generateDeck({
@@ -45,7 +45,7 @@ export class FlashcardController {
   async listDecks(req, res, next) {
     try {
       const { classId } = req.params;
-      const userId = req.user.id;
+      const userId = req.user.userId || req.user.id;
       const decks = await this.flashcardService.listDecks({ classId, userId });
       return res.json({ success: true, data: decks });
     } catch (err) {
@@ -57,7 +57,7 @@ export class FlashcardController {
   async getDeck(req, res, next) {
     try {
       const { classId, deckId } = req.params;
-      const userId = req.user.id;
+      const userId = req.user.userId || req.user.id;
       const deck = await this.flashcardService.getDeck({ deckId, classId, userId });
       return res.json({ success: true, data: deck });
     } catch (err) {
@@ -69,7 +69,7 @@ export class FlashcardController {
   async updateDeck(req, res, next) {
     try {
       const { deckId } = req.params;
-      const userId = req.user.id;
+      const userId = req.user.userId || req.user.id;
       const { title, description } = req.body;
       const result = await this.flashcardService.updateDeck({ deckId, userId, title, description });
       return res.json({ success: true, ...result });
@@ -82,7 +82,7 @@ export class FlashcardController {
   async deleteDeck(req, res, next) {
     try {
       const { deckId } = req.params;
-      const userId = req.user.id;
+      const userId = req.user.userId || req.user.id;
       await this.flashcardService.deleteDeck({ deckId, userId });
       return res.status(204).send();
     } catch (err) {
@@ -94,7 +94,7 @@ export class FlashcardController {
   async getDueCards(req, res, next) {
     try {
       const { classId, deckId } = req.params;
-      const userId = req.user.id;
+      const userId = req.user.userId || req.user.id;
       const limit = Math.min(50, parseInt(req.query.limit ?? '20', 10));
       const cards = await this.flashcardService.getDueCards({ deckId, classId, userId, limit });
       return res.json({ success: true, data: cards });
@@ -107,7 +107,7 @@ export class FlashcardController {
   async reviewCard(req, res, next) {
     try {
       const { cardId } = req.params;
-      const userId = req.user.id;
+      const userId = req.user.userId || req.user.id;
       const { masteryLevel } = req.body;
       const updated = await this.flashcardService.reviewCard({ flashcardId: cardId, userId, masteryLevel });
       return res.json({ success: true, data: updated });
@@ -120,7 +120,7 @@ export class FlashcardController {
   async getDeckStats(req, res, next) {
     try {
       const { classId, deckId } = req.params;
-      const userId = req.user.id;
+      const userId = req.user.userId || req.user.id;
       const stats = await this.flashcardService.getDeckStats({ deckId, classId, userId });
       return res.json({ success: true, data: stats });
     } catch (err) {

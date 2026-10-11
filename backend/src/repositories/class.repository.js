@@ -28,6 +28,65 @@ export class ClassRepository {
     });
   }
 
+  async findAllEnrolledByStudent({ organizationId, userId, activeOnly = true }) {
+    return prisma.class.findMany({
+      where: {
+        organizationId,
+        ...(activeOnly ? { isActive: true } : {}),
+        enrollments: {
+          some: {
+            userId,
+            isActive: true,
+          },
+        },
+      },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        _count: {
+          select: {
+            enrollments: {
+              where: { isActive: true },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async findByCode(code, organizationId) {
+    return prisma.class.findFirst({
+      where: {
+        code: { equals: code, mode: 'insensitive' },
+        ...(organizationId ? { organizationId } : {}),
+      },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        _count: {
+          select: {
+            enrollments: {
+              where: { isActive: true },
+            },
+          },
+        },
+      },
+    });
+  }
+
   async findById(id, organizationId) {
     return prisma.class.findFirst({
       where: {

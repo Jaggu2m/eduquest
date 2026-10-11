@@ -21,11 +21,10 @@ router.use('/:orgId/classes', classRoutes);
 router.get('/', organizationController.getAllOrganizations);
 router.get('/slug/:slug', organizationController.getOrganizationBySlug);
 router.get('/:id', organizationController.getOrganizationById);
-// Write routes — Protected by requireAuth + requirePlatformAdmin
+// Write routes — Create org: any authenticated user; Update/Delete: platform admin only
 router.post(
   '/',
   requireAuth,
-  requirePlatformAdmin,
   validate(CreateOrganizationSchema),
   organizationController.createOrganization,
 );

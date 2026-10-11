@@ -87,6 +87,10 @@ export class AssignmentRepository {
           organizationId,
           isActive: true,
         },
+        assessment: {
+          isActive: true,
+          status: 'PUBLISHED',
+        },
       },
       orderBy: { createdAt: 'desc' },
       include: {
@@ -95,8 +99,14 @@ export class AssignmentRepository {
             id: true,
             title: true,
             type: true,
+            status: true,
             totalMarks: true,
             timeLimitMins: true,
+            _count: {
+              select: {
+                questions: true,
+              },
+            },
           },
         },
         _count: {

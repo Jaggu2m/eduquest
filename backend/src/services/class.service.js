@@ -5,11 +5,31 @@ export class ClassService {
     this.organizationRepository = organizationRepository;
   }
 
-  async getClasses(organizationId, activeOnly = true) {
+  async getClasses(organizationId, activeOnly = true, user = null) {
     const org = await this.organizationRepository.findById(organizationId);
     if (!org) {
       throw new Error('Organization not found.');
     }
+
+    const userId = user?.userId || user?.id;
+    let isTeacherOrAdmin = user?.isPlatformAdmin;
+
+    if (userId && !isTeacherOrAdmin) {
+      const membership = await this.membershipRepository.findByUserAndOrg(userId, organizationId);
+      if (membership?.role === 'TEACHER') {
+        isTeacherOrAdmin = true;
+      }
+    }
+
+    // Students only see classes they are actively enrolled in
+    if (userId && !isTeacherOrAdmin) {
+      return this.classRepository.findAllEnrolledByStudent({
+        organizationId,
+        userId,
+        activeOnly,
+      });
+    }
+
     return this.classRepository.findAllByOrgId(organizationId, activeOnly);
   }
 
@@ -38,11 +58,15 @@ export class ClassService {
       }
     }
 
+    const generatedCode =
+      classData.code?.trim().toUpperCase() ||
+      `${(classData.name || 'CLS').replace(/[^a-zA-Z0-9]/g, '').slice(0, 3).toUpperCase() || 'CLS'}-${Math.floor(100 + Math.random() * 900)}`;
+
     return this.classRepository.create({
       organizationId,
       createdById: userId,
       name: classData.name,
-      code: classData.code || null,
+      code: generatedCode,
       description: classData.description || null,
       isActive: true,
     });
@@ -91,7 +115,9 @@ export class ClassService {
     if (!cls) {
       throw new Error('Class not found.');
     }
-    return this.classRepository.findEnrollmentsByClassId(classId, activeOnly);
+    const enrollments = await this.classRepository.findEnrollmentsByClassId(classId, activeOnly);
+    // Filter out class creator or any non-student enrollments
+    return enrollments.filter((e) => e.userId !== cls.createdById);
   }
 
   async enrollStudent({ classId, organizationId, studentUserId, requestingUser }) {
@@ -99,6 +125,10 @@ export class ClassService {
     const cls = await this.classRepository.findById(classId, organizationId);
     if (!cls || !cls.isActive) {
       throw new Error('Class not found or inactive.');
+    }
+
+    if (studentUserId === cls.createdById) {
+      throw new Error('Class creator/teacher cannot be enrolled as a student.');
     }
 
     // Permission check for requestingUser: PLATFORM_ADMIN, teacher, or self-enrolling
@@ -117,15 +147,22 @@ export class ClassService {
       }
     }
 
-    // Target student must be an active member of the organization
-    const studentMembership = await this.membershipRepository.findByUserAndOrg(
+    // Target student must be an active member of the organization (auto-create if new)
+    let studentMembership = await this.membershipRepository.findByUserAndOrg(
       studentUserId,
       organizationId,
     );
-    if (!studentMembership || !studentMembership.isActive) {
-      throw new Error(
-        'Student must be an active member of the organization to enroll in this class.',
-      );
+    if (!studentMembership) {
+      studentMembership = await this.membershipRepository.create({
+        userId: studentUserId,
+        organizationId,
+        role: 'STUDENT',
+        isActive: true,
+      });
+    } else if (!studentMembership.isActive) {
+      throw new Error('Student membership in this organization is inactive.');
+    } else if (studentMembership.role === 'TEACHER') {
+      throw new Error('Teachers cannot be enrolled as students.');
     }
 
     // Check existing enrollment
@@ -172,5 +209,31 @@ export class ClassService {
     }
 
     return this.classRepository.updateEnrollment(existing.id, { isActive: false });
+  }
+
+  async joinClassByCode({ organizationId, user, code }) {
+    const userId = user.userId || user.id;
+    if (!code || typeof code !== 'string') {
+      throw new Error('Class invite code is required.');
+    }
+
+    const cleanCode = code.trim().toUpperCase();
+    const cls = await this.classRepository.findByCode(cleanCode, organizationId);
+    if (!cls || !cls.isActive) {
+      throw new Error(`Class with invite code "${cleanCode}" not found.`);
+    }
+
+    if (cls.createdById === userId) {
+      throw new Error('You are the teacher/creator of this class and cannot join as a student.');
+    }
+
+    await this.enrollStudent({
+      classId: cls.id,
+      organizationId,
+      studentUserId: userId,
+      requestingUser: user,
+    });
+
+    return cls;
   }
 }

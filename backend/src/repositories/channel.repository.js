@@ -24,11 +24,47 @@ export class ChannelRepository {
   }
 
   /**
-   * Find all channels for a class (that the user is a member of).
+   * Find all channels for a class (all enrolled students and teachers can view class channels).
    * @param {string} classId
    * @param {string} userId
    */
   async findByClass(classId, userId) {
+    // Check if user is enrolled in class or created the class
+    const [cls, enrollment] = await Promise.all([
+      prisma.class.findUnique({
+        where: { id: classId },
+        select: { createdById: true },
+      }),
+      prisma.enrollment.findFirst({
+        where: { classId, userId, isActive: true },
+      }),
+    ]);
+
+    const isClassMember = cls?.createdById === userId || !!enrollment;
+
+    if (isClassMember) {
+      const channels = await prisma.channel.findMany({
+        where: { classId },
+        include: {
+          _count: { select: { messages: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      // Auto-backfill user into ChannelMember for all channels
+      for (const ch of channels) {
+        await prisma.channelMember
+          .upsert({
+            where: { channelId_userId: { channelId: ch.id, userId } },
+            create: { channelId: ch.id, userId },
+            update: {},
+          })
+          .catch(() => {});
+      }
+
+      return channels;
+    }
+
     return prisma.channel.findMany({
       where: {
         classId,
@@ -42,17 +78,43 @@ export class ChannelRepository {
   }
 
   /**
-   * Find a single channel by ID, ensuring the user is a member.
+   * Find a single channel by ID, ensuring the user is a member or class participant.
    * @param {string} id
    * @param {string} userId
    */
   async findById(id, userId) {
-    return prisma.channel.findFirst({
-      where: {
-        id,
-        members: { some: { userId } },
+    const channel = await prisma.channel.findUnique({
+      where: { id },
+      include: {
+        class: {
+          select: {
+            createdById: true,
+          },
+        },
       },
     });
+
+    if (!channel) return null;
+
+    if (channel.class?.createdById === userId) {
+      await this.addMember(id, userId).catch(() => {});
+      return channel;
+    }
+
+    const enrollment = await prisma.enrollment.findFirst({
+      where: { classId: channel.classId, userId, isActive: true },
+    });
+
+    if (enrollment) {
+      await this.addMember(id, userId).catch(() => {});
+      return channel;
+    }
+
+    const member = await prisma.channelMember.findUnique({
+      where: { channelId_userId: { channelId: id, userId } },
+    });
+
+    return member ? channel : null;
   }
 
   /**
@@ -88,6 +150,7 @@ export class ChannelRepository {
 
   /**
    * Check if a user is a member of a channel.
+   * If user is enrolled in the channel's class or is the teacher, auto-adds them.
    * @param {string} channelId
    * @param {string} userId
    */
@@ -95,7 +158,33 @@ export class ChannelRepository {
     const member = await prisma.channelMember.findUnique({
       where: { channelId_userId: { channelId, userId } },
     });
-    return !!member;
+    if (member) return true;
+
+    const channel = await prisma.channel.findUnique({
+      where: { id: channelId },
+      select: {
+        classId: true,
+        class: { select: { createdById: true } },
+      },
+    });
+
+    if (!channel) return false;
+
+    if (channel.class?.createdById === userId) {
+      await this.addMember(channelId, userId).catch(() => {});
+      return true;
+    }
+
+    const enrollment = await prisma.enrollment.findFirst({
+      where: { classId: channel.classId, userId, isActive: true },
+    });
+
+    if (enrollment) {
+      await this.addMember(channelId, userId).catch(() => {});
+      return true;
+    }
+
+    return false;
   }
 
   /**

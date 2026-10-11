@@ -36,9 +36,10 @@ export class AssignmentController {
       const assignments = await this.assignmentService.getAssignmentsByClass({
         organizationId: orgId,
         classId,
+        userId: req.user?.id,
       });
 
-      return res.json(assignments);
+      return res.json({ assignments });
     } catch (error) {
       const statusCode = error.statusCode || 400;
       return res.status(statusCode).json({ message: error.message });
@@ -106,7 +107,7 @@ export class AssignmentController {
 
       return res.json({
         message: 'Assessment submitted and evaluated successfully.',
-        result,
+        attempt: result,
       });
     } catch (error) {
       const statusCode = error.statusCode || 400;
