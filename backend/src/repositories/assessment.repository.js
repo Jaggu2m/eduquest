@@ -286,6 +286,103 @@ export class AssessmentRepository {
   }
 
   /**
+   * Add a question to an assessment.
+   *
+   * @param {string} assessmentId
+   * @param {object} data
+   * @returns {Promise<object>}
+   */
+  async createQuestion(assessmentId, data) {
+    return prisma.$transaction(async (tx) => {
+      const {
+        prompt,
+        questionType = 'MULTIPLE_CHOICE',
+        marks = 1.0,
+        explanation,
+        order,
+        options,
+      } = data;
+
+      let questionOrder = order;
+      if (questionOrder === undefined) {
+        const count = await tx.question.count({ where: { assessmentId } });
+        questionOrder = count;
+      }
+
+      const createdQuestion = await tx.question.create({
+        data: {
+          assessmentId,
+          prompt,
+          questionType,
+          marks: Number(marks) || 1.0,
+          explanation: explanation || null,
+          order: Number(questionOrder),
+        },
+      });
+
+      if (Array.isArray(options) && options.length > 0) {
+        await tx.questionOption.createMany({
+          data: options.map((opt, idx) => ({
+            questionId: createdQuestion.id,
+            text: opt.text,
+            isCorrect: Boolean(opt.isCorrect),
+            order: opt.order !== undefined ? opt.order : idx,
+          })),
+        });
+      }
+
+      // Recalculate total marks
+      const allQuestions = await tx.question.findMany({
+        where: { assessmentId },
+        select: { marks: true },
+      });
+      const newTotalMarks = allQuestions.reduce((sum, q) => sum + q.marks, 0);
+
+      await tx.assessment.update({
+        where: { id: assessmentId },
+        data: { totalMarks: newTotalMarks },
+      });
+
+      return tx.question.findUnique({
+        where: { id: createdQuestion.id },
+        include: {
+          options: { orderBy: { order: 'asc' } },
+        },
+      });
+    });
+  }
+
+  /**
+   * Delete a question from an assessment.
+   *
+   * @param {string} questionId
+   * @param {string} assessmentId
+   * @returns {Promise<object>}
+   */
+  async deleteQuestion(questionId, assessmentId) {
+    return prisma.$transaction(async (tx) => {
+      await tx.questionOption.deleteMany({ where: { questionId } });
+      const deleted = await tx.question.delete({
+        where: { id: questionId, assessmentId },
+      });
+
+      // Recalculate total marks
+      const allQuestions = await tx.question.findMany({
+        where: { assessmentId },
+        select: { marks: true },
+      });
+      const newTotalMarks = allQuestions.reduce((sum, q) => sum + q.marks, 0);
+
+      await tx.assessment.update({
+        where: { id: assessmentId },
+        data: { totalMarks: newTotalMarks },
+      });
+
+      return deleted;
+    });
+  }
+
+  /**
    * Soft-delete an assessment.
    *
    * @param {string} id

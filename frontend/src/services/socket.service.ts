@@ -26,6 +26,10 @@ class SocketService {
     return this.socket;
   }
 
+  joinClass(classId: string) {
+    this.socket?.emit('join:class', classId);
+  }
+
   joinChannel(channelId: string) {
     this.socket?.emit('channel:join', { channelId });
   }

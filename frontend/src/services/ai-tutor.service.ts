@@ -46,7 +46,11 @@ export const aiTutorService = {
     classId: string,
     conversationId: string,
     content: string,
-  ): Promise<{ userMessage: ConversationMessage; assistantMessage: ConversationMessage }> {
+  ): Promise<{
+    userMessage: ConversationMessage;
+    assistantMessage: ConversationMessage;
+    conversationTitle?: string;
+  }> {
     const res = await api.post(
       `/organizations/${orgId}/classes/${classId}/conversations/${conversationId}/messages`,
       { content },
@@ -63,6 +67,7 @@ export const aiTutorService = {
     return {
       userMessage: normalize(raw.userMessage),
       assistantMessage: normalize(raw.assistantMessage),
+      conversationTitle: raw.conversationTitle as string | undefined,
     };
   },
 

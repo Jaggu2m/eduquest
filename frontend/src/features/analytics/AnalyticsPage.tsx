@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { analyticsService, StudentAnalytics } from '../../services/analytics.service';
-import { TopicMastery, QuestionDifficulty, RemedialRecommendation } from '../../types';
+import { TopicMastery, QuestionDifficulty, RemedialRecommendation, Enrollment } from '../../types';
 import { Card, Badge } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { MarkdownContent } from '../../components/ui/MarkdownContent';
+import { classService } from '../../services/class.service';
 import {
   BarChart,
   Bar,
@@ -52,6 +53,8 @@ export const AnalyticsPage: React.FC = () => {
 
   // Student states
   const [studentData, setStudentData] = useState<StudentAnalytics | null>(null);
+  const [studentEnrollments, setStudentEnrollments] = useState<Enrollment[]>([]);
+  const [selectedStudentId, setSelectedStudentId] = useState('');
 
   const [loading, setLoading] = useState(true);
 
@@ -61,16 +64,18 @@ export const AnalyticsPage: React.FC = () => {
     try {
       if (isTeacher) {
         // Teacher view: load class-level overview & teaching insights
-        const [ov, tp, qs, ins] = await Promise.all([
+        const [ov, tp, qs, ins, roster] = await Promise.all([
           analyticsService.getClassOverview(selectedOrg.id, selectedClass.id).catch(() => null),
           analyticsService.getClassTopics(selectedOrg.id, selectedClass.id).catch(() => []),
           analyticsService.getClassQuestions(selectedOrg.id, selectedClass.id).catch(() => []),
           analyticsService.getClassInsights(selectedOrg.id, selectedClass.id).catch(() => null),
+          classService.getEnrollments(selectedOrg.id, selectedClass.id).catch(() => []),
         ]);
         setOverview(ov);
         setTopics(Array.isArray(tp) ? tp : (tp as any)?.topics || []);
         setQuestions(Array.isArray(qs) ? qs : (qs as any)?.questions || []);
         setInsights(ins);
+        setStudentEnrollments(Array.isArray(roster) ? roster : []);
       } else {
         // Student view: load dedicated personal analytics
         const studentAnalytics = await analyticsService
@@ -86,8 +91,42 @@ export const AnalyticsPage: React.FC = () => {
   };
 
   useEffect(() => {
+    setSelectedStudentId('');
+    setStudentData(null);
     load();
   }, [selectedOrg?.id, selectedClass?.id, isTeacher]);
+
+  const handleStudentSelection = async (studentId: string) => {
+    setSelectedStudentId(studentId);
+    if (!studentId) {
+      setStudentData(null);
+      return;
+    }
+    if (!selectedOrg?.id || !selectedClass?.id) return;
+
+    setLoading(true);
+    try {
+      const data = await analyticsService.getStudentAnalytics(
+        selectedOrg.id,
+        selectedClass.id,
+        studentId,
+      );
+      setStudentData(data);
+    } catch (err) {
+      console.error('Failed to load selected student analytics:', err);
+      setStudentData(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefresh = () => {
+    if (isTeacher && selectedStudentId) {
+      void handleStudentSelection(selectedStudentId);
+    } else {
+      void load();
+    }
+  };
 
   if (loading) {
     return (
@@ -100,7 +139,7 @@ export const AnalyticsPage: React.FC = () => {
   // ═══════════════════════════════════════════════════════════════════════════
   // STUDENT VIEW — 100% Dedicated to the individual student's own attempts
   // ═══════════════════════════════════════════════════════════════════════════
-  if (!isTeacher) {
+  if (!isTeacher || selectedStudentId) {
     const avgScore = studentData?.averageScorePercent ?? 0;
     const bestScore = studentData?.bestScorePercent ?? 0;
     const totalAttempts = studentData?.totalAttempts ?? 0;
@@ -118,15 +157,46 @@ export const AnalyticsPage: React.FC = () => {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-extrabold text-stone-900">My Learning Analytics</h1>
+            <h1 className="text-2xl font-extrabold text-stone-900">
+              {isTeacher
+                ? `${
+                    studentEnrollments.find((enrollment) => enrollment.userId === selectedStudentId)
+                      ?.user.firstName || 'Student'
+                  } ${
+                    studentEnrollments.find((enrollment) => enrollment.userId === selectedStudentId)
+                      ?.user.lastName || ''
+                  }`.trim() + ' · Analytics'
+                : 'My Learning Analytics'}
+            </h1>
             <p className="text-stone-500 text-sm mt-0.5">
-              {selectedClass?.name} · Personal performance, topic mastery & quiz history
+              {selectedClass?.name} ·{' '}
+              {isTeacher
+                ? 'Individual performance, topic mastery & quiz history'
+                : 'Personal performance, topic mastery & quiz history'}
             </p>
           </div>
-          <Button size="sm" variant="secondary" onClick={load}>
-            <RefreshCw className="w-3.5 h-3.5" />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-3">
+            {isTeacher && (
+              <select
+                aria-label="Select student analytics"
+                value={selectedStudentId}
+                onChange={(event) => void handleStudentSelection(event.target.value)}
+                className="max-w-xs text-sm bg-white border border-[#EAE2D5] rounded-xl px-3 py-2 text-stone-700 focus:outline-none focus:border-[#EA580C]"
+              >
+                <option value="">Class overview</option>
+                {studentEnrollments.map((enrollment) => (
+                  <option key={enrollment.userId} value={enrollment.userId}>
+                    {enrollment.user.firstName} {enrollment.user.lastName}
+                    {enrollment.user.email ? ` (${enrollment.user.email})` : ''}
+                  </option>
+                ))}
+              </select>
+            )}
+            <Button size="sm" variant="secondary" onClick={handleRefresh}>
+              <RefreshCw className="w-3.5 h-3.5" />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         {/* Metric Cards (Personal to Student) */}
@@ -445,10 +515,26 @@ export const AnalyticsPage: React.FC = () => {
             {selectedClass?.name} · AI-powered teaching insights & class performance
           </p>
         </div>
-        <Button size="sm" variant="secondary" onClick={load}>
-          <RefreshCw className="w-3.5 h-3.5" />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-3">
+          <select
+            aria-label="Select student analytics"
+            value={selectedStudentId}
+            onChange={(event) => void handleStudentSelection(event.target.value)}
+            className="max-w-xs text-sm bg-white border border-[#EAE2D5] rounded-xl px-3 py-2 text-stone-700 focus:outline-none focus:border-[#EA580C]"
+          >
+            <option value="">Class overview</option>
+            {studentEnrollments.map((enrollment) => (
+              <option key={enrollment.userId} value={enrollment.userId}>
+                {enrollment.user.firstName} {enrollment.user.lastName}
+                {enrollment.user.email ? ` (${enrollment.user.email})` : ''}
+              </option>
+            ))}
+          </select>
+          <Button size="sm" variant="secondary" onClick={handleRefresh}>
+            <RefreshCw className="w-3.5 h-3.5" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Key metric cards (Class Overview) */}
@@ -608,22 +694,29 @@ export const AnalyticsPage: React.FC = () => {
                   <tr key={i} className="hover:bg-[#FAF6F0] transition">
                     <td className="py-3 pr-4 text-stone-700 truncate max-w-xs">{q.prompt}</td>
                     <td className="py-3 px-4 text-center font-semibold text-stone-800">
-                      {(q.itemDifficulty * 100).toFixed(0)}%
+                      {typeof q.difficultyIndex === 'number' && Number.isFinite(q.difficultyIndex)
+                        ? `${(q.difficultyIndex * 100).toFixed(0)}%`
+                        : '—'}
                     </td>
                     <td className="py-3 px-4 text-center text-stone-600">
-                      {q.discriminationIndex?.toFixed(2)}
+                      {typeof q.discriminationIndex === 'number' &&
+                      Number.isFinite(q.discriminationIndex)
+                        ? q.discriminationIndex.toFixed(2)
+                        : '—'}
                     </td>
                     <td className="py-3 text-center">
                       <Badge
                         variant={
-                          q.difficultyLabel === 'EASY'
+                          q.difficultyCategory === 'EASY'
                             ? 'ready'
-                            : q.difficultyLabel === 'MODERATE'
+                            : q.difficultyCategory === 'MODERATE'
                               ? 'scheduled'
-                              : 'orange'
+                              : q.difficultyCategory === 'HARD'
+                                ? 'orange'
+                                : 'neutral'
                         }
                       >
-                        {q.difficultyLabel}
+                        {q.difficultyCategory}
                       </Badge>
                     </td>
                   </tr>

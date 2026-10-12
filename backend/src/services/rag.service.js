@@ -1,5 +1,15 @@
 import { prisma } from '../lib/prismaClient.js';
 
+const DEFAULT_CONVERSATION_TITLES = new Set(['Document Discussion', 'Untitled chat']);
+
+const titleFromMessage = (message) => {
+  const normalized = message.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= 60) return normalized;
+  const shortened = normalized.slice(0, 57);
+  const lastSpace = shortened.lastIndexOf(' ');
+  return `${(lastSpace > 30 ? shortened.slice(0, lastSpace) : shortened).trim()}…`;
+};
+
 export class RagService {
   constructor({
     conversationRepository,
@@ -96,7 +106,23 @@ export class RagService {
    */
   async listConversations({ userId, classId, organizationId, page = 1, limit = 20, user }) {
     await this._verifyClassAccess(classId, organizationId, user);
-    return this.conversationRepository.findByUserAndClass(userId, classId, { page, limit });
+    const result = await this.conversationRepository.findByUserAndClass(userId, classId, {
+      page,
+      limit,
+    });
+    const conversations = await Promise.all(
+      result.conversations.map(async (conversation) => {
+        const { messages, ...conversationSummary } = conversation;
+        const firstUserMessage = messages?.[0]?.content;
+        if (firstUserMessage && DEFAULT_CONVERSATION_TITLES.has(conversation.title)) {
+          const title = titleFromMessage(firstUserMessage);
+          await this.conversationRepository.updateTitle(conversation.id, userId, classId, title);
+          return { ...conversationSummary, title };
+        }
+        return conversationSummary;
+      }),
+    );
+    return { ...result, conversations };
   }
 
   /**
@@ -172,6 +198,18 @@ export class RagService {
       content,
     });
 
+    let conversationTitle = conv.title;
+    const hasPreviousUserMessage = conv.messages?.some((message) => message.senderRole === 'USER');
+    if (!hasPreviousUserMessage && DEFAULT_CONVERSATION_TITLES.has(conv.title)) {
+      conversationTitle = titleFromMessage(content);
+      await this.conversationRepository.updateTitle(
+        conversationId,
+        userId,
+        classId,
+        conversationTitle,
+      );
+    }
+
     // 2. Backfill embeddings for any chunks in this document/class missing them
     try {
       const missingChunks = await this.vectorRepository.findChunksWithoutEmbedding({
@@ -197,12 +235,26 @@ export class RagService {
     const queryVector = await this.embeddingService.generateEmbedding(content);
     const queryVectorStr = this.embeddingService.vectorToString(queryVector);
 
-    // 4. Retrieve top-4 relevant chunks using pgvector
+    // 4. Resolve the effective documentId for search.
+    //    If the conversation was pinned to a document that has since been soft-deleted,
+    //    fall back to a class-wide search so the user still gets an answer.
+    let effectiveDocumentId = conv.documentId;
+    if (effectiveDocumentId) {
+      const doc = await this.documentRepository.findById(effectiveDocumentId, organizationId);
+      if (!doc || !doc.isActive) {
+        console.warn(
+          `[RagService]: Conversation ${conversationId} references inactive/missing document ${effectiveDocumentId}. Falling back to class-wide search.`,
+        );
+        effectiveDocumentId = null;
+      }
+    }
+
+    // Retrieve top-5 relevant chunks using pgvector
     const relevantChunks = await this.vectorRepository.searchSimilarChunks({
       queryVector: queryVectorStr,
       classId,
-      documentId: conv.documentId,
-      limit: 4,
+      documentId: effectiveDocumentId,
+      limit: 5,
     });
 
     // 5. Fetch recent conversation history
@@ -240,6 +292,7 @@ export class RagService {
 
     return {
       userMessage,
+      conversationTitle,
       assistantMessage: {
         id: assistantMessage.id,
         senderRole: assistantMessage.senderRole,

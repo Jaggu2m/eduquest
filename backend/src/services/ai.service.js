@@ -47,6 +47,7 @@ Rules:
 2. Allowed question types: ${typesStr}.
 3. Difficulty level: ${difficulty}.
 4. For MULTIPLE_CHOICE: Provide exactly 4 options. Exactly 1 must have isCorrect: true, the other 3 must have isCorrect: false. Distractors must be plausible and educational.
+CRITICAL: You MUST randomize the position of the correct answer (isCorrect: true) across questions. Do NOT always place the correct answer as the first option. Distribute the correct answer evenly across the positions (Option 1, Option 2, Option 3, Option 4).
 5. For TRUE_FALSE: Provide exactly 2 options: "True" and "False". Exactly 1 must have isCorrect: true.
 6. For SHORT_ANSWER: Provide an explanation of what key concepts the student's answer must include. Options array should be empty.
 7. Include a clear, constructive explanation for every question explaining why the correct answer is right.
@@ -62,10 +63,10 @@ You MUST return a JSON object adhering to this schema:
       "topic": "Topic Name",
       "explanation": "Detailed explanation of why this answer is correct...",
       "options": [
-        { "text": "Option A text", "isCorrect": true },
-        { "text": "Option B text", "isCorrect": false },
-        { "text": "Option C text", "isCorrect": false },
-        { "text": "Option D text", "isCorrect": false }
+        { "text": "Option 1 text", "isCorrect": false },
+        { "text": "Option 2 text", "isCorrect": true },
+        { "text": "Option 3 text", "isCorrect": false },
+        { "text": "Option 4 text", "isCorrect": false }
       ]
     }
   ]
@@ -125,21 +126,36 @@ Generate the JSON quiz now.`;
       throw new Error('AI output did not contain a valid array of questions.');
     }
 
-    return questions.map((q, idx) => ({
-      prompt: q.prompt,
-      questionType: q.questionType || 'MULTIPLE_CHOICE',
-      marks: Number(q.marks) || 1.0,
-      topic: typeof q.topic === 'string' ? q.topic : q.topic?.name || 'General',
-      explanation: q.explanation || null,
-      order: idx,
-      options: Array.isArray(q.options)
-        ? q.options.map((opt, optIdx) => ({
-            text: opt.text,
-            isCorrect: Boolean(opt.isCorrect),
-            order: optIdx,
-          }))
-        : [],
-    }));
+    const shuffleArray = (array) => {
+      const arr = [...array];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    };
+
+    return questions.map((q, idx) => {
+      let rawOptions = Array.isArray(q.options) ? q.options : [];
+      // Programmatically shuffle options for MULTIPLE_CHOICE to guarantee random answer position
+      if (q.questionType === 'MULTIPLE_CHOICE' || (q.questionType !== 'TRUE_FALSE' && rawOptions.length > 2)) {
+        rawOptions = shuffleArray(rawOptions);
+      }
+
+      return {
+        prompt: q.prompt,
+        questionType: q.questionType || 'MULTIPLE_CHOICE',
+        marks: Number(q.marks) || 1.0,
+        topic: typeof q.topic === 'string' ? q.topic : q.topic?.name || 'General',
+        explanation: q.explanation || null,
+        order: idx,
+        options: rawOptions.map((opt, optIdx) => ({
+          text: opt.text,
+          isCorrect: Boolean(opt.isCorrect),
+          order: optIdx,
+        })),
+      };
+    });
   }
 
   /**
@@ -151,36 +167,109 @@ Generate the JSON quiz now.`;
    * @param {Array<object>} [params.history=[]] - Recent message history [{ role: 'user' | 'assistant', content }]
    * @returns {Promise<string>} Grounded answer text
    */
+  /**
+   * Heuristic to detect low-quality / garbled OCR text.
+   * Returns a score 0..1 where 1 = fully readable, 0 = unreadable.
+   */
+  _scoreTextQuality(text) {
+    if (!text || text.trim().length === 0) return 0;
+    const words = text.split(/\s+/);
+    const totalWords = words.length;
+    if (totalWords === 0) return 0;
+
+    // Count 'clean' words: at least 2 chars, mostly ASCII letters/digits
+    const cleanWords = words.filter((w) => {
+      const stripped = w.replace(/[^a-zA-Z0-9]/g, '');
+      return stripped.length >= 2 && stripped.length / Math.max(w.length, 1) > 0.6;
+    });
+
+    // Excess tab/whitespace is a strong OCR artefact indicator
+    const tabRatio = (text.match(/\t/g) || []).length / Math.max(text.length, 1);
+    const qualityScore = cleanWords.length / totalWords - tabRatio * 5;
+    return Math.max(0, Math.min(1, qualityScore));
+  }
+
   async answerQuestionWithContext({ question, contextChunks = [], history = [] }) {
     if (!question || question.trim().length === 0) {
       throw new Error('Question is required for RAG answering.');
     }
 
-    // Format retrieved contexts with citation markers
-    const formattedContext =
-      contextChunks.length > 0
-        ? contextChunks
-            .map((chunk, idx) => {
-              const docInfo = chunk.documentTitle
-                ? `Document: "${chunk.documentTitle}"`
-                : 'Source Document';
-              const pageInfo = chunk.pageNumber ? `, Page ${chunk.pageNumber}` : '';
-              const chunkInfo =
-                chunk.chunkIndex !== undefined ? `, Chunk #${chunk.chunkIndex}` : '';
-              return `[Source ${idx + 1} | ${docInfo}${pageInfo}${chunkInfo}]\n${chunk.content}`;
-            })
-            .join('\n\n---\n\n')
-        : 'No specific reference documents found.';
+    // Filter chunks: keep only those with reasonable text quality (score >= 0.35)
+    // but always retain the document title for context attribution
+    const MIN_QUALITY = 0.35;
+    const readableChunks = contextChunks.filter(
+      (c) => this._scoreTextQuality(c.content) >= MIN_QUALITY,
+    );
 
-    const systemPrompt = `You are EdQuest AI, a knowledgeable, encouraging, and academically rigorous teaching assistant.
-Your goal is to answer student and teacher questions grounded directly in the provided reference course material.
+    // Collect unique document titles from ALL retrieved chunks (even garbled ones)
+    // so the AI knows which documents were searched
+    const allDocTitles = [...new Set(
+      contextChunks
+        .filter((c) => c.documentTitle)
+        .map((c) => c.documentTitle),
+    )];
 
-GUIDELINES:
-1. Ground your answer in the provided SOURCE MATERIAL.
-2. If the answer is directly supported by the sources, state it clearly and provide citations like "[Source 1]" or mention the document title/page.
-3. If the sources do not contain enough information to answer completely, acknowledge what is in the text, and politely state that the provided material does not cover the remaining details.
-4. Keep explanations clear, well-structured, and pedagogical (use bullet points or markdown when helpful).
-5. Never hallucinate facts or contradict the source material.`;
+    // Build context string from readable chunks only
+    let formattedContext;
+    let sourceQualityNote = '';
+
+    if (readableChunks.length > 0) {
+      formattedContext = readableChunks
+        .map((chunk, idx) => {
+          const docInfo = chunk.documentTitle
+            ? `Document: "${chunk.documentTitle}"`
+            : 'Source Document';
+          const pageInfo = chunk.pageNumber ? `, Page ${chunk.pageNumber}` : '';
+          const chunkInfo =
+            chunk.chunkIndex !== undefined ? `, Chunk #${chunk.chunkIndex}` : '';
+          return `[Source ${idx + 1} | ${docInfo}${pageInfo}${chunkInfo}]\n${chunk.content}`;
+        })
+        .join('\n\n---\n\n');
+    } else if (allDocTitles.length > 0) {
+      // Chunks exist but are all garbled OCR — tell the AI which docs were found
+      formattedContext = `[Note: Relevant sections were found in the following document(s): ${allDocTitles.map((t) => `"${t}"`).join(', ')}, but the text could not be read clearly (likely scanned/handwritten notes). Please answer from your academic knowledge about the course topic.]`;
+      sourceQualityNote = 'The uploaded documents appear to be scanned or handwritten and could not be parsed clearly. ';
+    } else {
+      formattedContext = 'No course documents have been uploaded for this class yet.';
+    }
+
+    const systemPrompt = `You are EdQuest AI, a knowledgeable, encouraging, and academically rigorous teaching assistant for students and teachers. You explain topics thoroughly, the way an excellent teacher would write well-prepared class notes.
+
+## HOW TO USE THE SOURCE MATERIAL
+1. The provided SOURCE MATERIAL is your primary reference when it contains readable text. Base your answer on it wherever it clearly covers the topic.
+2. When you use information from the sources, cite it inline, e.g. "[Source 1]", or mention the document title/page.
+3. **If the source material is absent, unclear, garbled, or only partially covers the topic**, do NOT say "no information found". Instead:
+   - Provide a thorough, academically accurate answer from your own knowledge.
+   - Mention briefly that the class documents didn't contain clear text on this topic (e.g. "The uploaded notes don't have clear text on this, so here's a comprehensive explanation:").
+   - ${sourceQualityNote}Answer as a knowledgeable teacher would.
+4. If readable source material IS present, expand on it using your general subject knowledge to:
+   - explain, expand, or clarify concepts the sources introduce,
+   - add definitions, intuition, examples, analogies, or context that connect directly to the source topic,
+   - fill small gaps so the answer feels complete.
+5. Stay within the scope and spirit of the course material. Do not drift into unrelated topics or a different curriculum level than the sources suggest.
+6. Never contradict clear source material. Mark source-based content with citations and added knowledge with "Additional context:".
+7. If the question is completely unrelated to the course topic, say so briefly and give a short helpful pointer.
+8. Never invent citations, quotes, page numbers, or facts. If unsure, say so.
+
+## ANSWER LENGTH AND DEPTH
+- Default to detailed, comprehensive answers: cover definitions, how/why it works, key points, examples, and relevant edge cases or common mistakes.
+- Only give a short answer if the user explicitly asks for it (e.g. "briefly", "in short", "one line", "summarize quickly").
+- If the user asks for a summary, keep it concise but still structured.
+- Match depth to the question: a simple factual question gets a focused but complete answer, and a "explain" or "how/why" question gets a full structured explanation.
+
+## FORMATTING (always follow, unless the user asks for a different format)
+Write structured, well-organized, note-style answers in Markdown:
+- Start with a one- or two-sentence direct answer or overview.
+- Use ## main headings and ### sub-headings to organize sections.
+- Use bullet points and numbered lists for features, steps, and comparisons.
+- Use **bold** for important terms, definitions, and key concepts. Use *italics* for emphasis or secondary terms.
+- Use tables for comparisons, code blocks for code or formulas, and > blockquotes for key definitions or important takeaways.
+- Include a worked example or analogy when it helps understanding.
+- End with a "## Key Takeaways" section (3-5 bullets). For longer answers, optionally add a "## Quick Revision" or "## Check Your Understanding" with 1-3 practice questions.
+- Keep paragraphs short and scannable. Avoid walls of text.
+
+## TONE
+Be clear, patient, and encouraging. Explain jargon when you first use it. Write for a learner, but never be condescending.`;
 
     const messages = [{ role: 'system', content: systemPrompt }];
 
@@ -202,7 +291,7 @@ ${formattedContext}
 QUESTION:
 ${question}
 
-Please answer the question based on the source material above.`;
+Please answer the question thoroughly. If the source material above is unclear or garbled, use your academic knowledge to give a complete answer.`;
 
     messages.push({
       role: 'user',
@@ -214,7 +303,7 @@ Please answer the question based on the source material above.`;
       completion = await this.groq.chat.completions.create({
         model: this.defaultModel,
         messages,
-        temperature: 0.3,
+        temperature: 0.4,
       });
     } catch (primaryErr) {
       console.warn(
@@ -223,7 +312,7 @@ Please answer the question based on the source material above.`;
       completion = await this.groq.chat.completions.create({
         model: this.fallbackModel,
         messages,
-        temperature: 0.3,
+        temperature: 0.4,
       });
     }
 

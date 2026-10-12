@@ -181,6 +181,15 @@ export const UpdateQuestionSchema = z
   })
   .strict();
 
+export const CreateQuestionSchema = z.object({
+  prompt: z.string().min(1, 'Question prompt is required.'),
+  questionType: QuestionTypeEnum.default('MULTIPLE_CHOICE'),
+  marks: z.coerce.number().positive().default(1.0),
+  explanation: z.string().optional(),
+  order: z.number().int().optional(),
+  options: z.array(OptionSchema).optional(),
+});
+
 // ── Assessment Scheduling & Attempts (Phase 8) ────────────────────────────────
 
 export const CreateAssignmentSchema = z.object({

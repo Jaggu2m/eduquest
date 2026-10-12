@@ -89,12 +89,25 @@ export class ConversationRepository {
           _count: {
             select: { messages: true },
           },
+          messages: {
+            where: { senderRole: 'USER' },
+            orderBy: { createdAt: 'asc' },
+            take: 1,
+            select: { content: true },
+          },
         },
       }),
       prisma.conversation.count({ where }),
     ]);
 
     return { conversations, total };
+  }
+
+  async updateTitle(id, userId, classId, title) {
+    return prisma.conversation.updateMany({
+      where: { id, userId, classId },
+      data: { title },
+    });
   }
 
   /**

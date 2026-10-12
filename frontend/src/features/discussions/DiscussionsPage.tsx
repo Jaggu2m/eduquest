@@ -22,13 +22,21 @@ export const DiscussionsPage: React.FC = () => {
   const [creating, setCreating] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<any>(null);
+  const activeChannelRef = useRef<DiscussionChannel | null>(null);
+
+  useEffect(() => {
+    activeChannelRef.current = activeChannel;
+  }, [activeChannel]);
 
   useEffect(() => {
     if (!selectedOrg?.id || !selectedClass?.id) return;
+    let isMounted = true;
+
     const load = async () => {
       setLoading(true);
       try {
         const chs = await discussionService.listChannels(selectedOrg.id, selectedClass.id);
+        if (!isMounted) return;
         setChannels(chs);
         if (chs.length > 0) {
           await openChannel(chs[0]);
@@ -36,7 +44,7 @@ export const DiscussionsPage: React.FC = () => {
       } catch (err) {
         console.error(err);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
     load();
@@ -44,13 +52,58 @@ export const DiscussionsPage: React.FC = () => {
     // Connect socket
     const socket = socketService.connect();
     socketRef.current = socket;
+    socketService.joinClass(selectedClass.id);
 
-    socket.on('message:new', (msg: DiscussionMessage) => {
-      setMessages((prev) => [...prev, msg]);
-    });
+    const handleNewMessage = (msg: DiscussionMessage) => {
+      // Only append if message belongs to the current active channel
+      if (activeChannelRef.current && msg.channelId !== activeChannelRef.current.id) {
+        return;
+      }
+      setMessages((prev) => {
+        // Prevent duplicate messages
+        if (prev.some((m) => m.id === msg.id)) {
+          return prev;
+        }
+        return [...prev, msg];
+      });
+    };
+
+    const handleUpdatedMessage = (msg: DiscussionMessage) => {
+      if (activeChannelRef.current && msg.channelId !== activeChannelRef.current.id) {
+        return;
+      }
+      setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, ...msg } : m)));
+    };
+
+    const handleDeletedMessage = ({ messageId }: { messageId: string }) => {
+      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    };
+
+    const handleNewChannel = (ch: DiscussionChannel) => {
+      if (ch.classId === selectedClass.id) {
+        setChannels((prev) => {
+          if (prev.some((c) => c.id === ch.id)) return prev;
+          return [...prev, ch];
+        });
+      }
+    };
+
+    socket.on('message:new', handleNewMessage);
+    socket.on('reply:new', handleNewMessage);
+    socket.on('message:updated', handleUpdatedMessage);
+    socket.on('message:deleted', handleDeletedMessage);
+    socket.on('channel:new', handleNewChannel);
 
     return () => {
-      if (activeChannel) socketService.leaveChannel(activeChannel.id);
+      isMounted = false;
+      socket.off('message:new', handleNewMessage);
+      socket.off('reply:new', handleNewMessage);
+      socket.off('message:updated', handleUpdatedMessage);
+      socket.off('message:deleted', handleDeletedMessage);
+      socket.off('channel:new', handleNewChannel);
+      if (activeChannelRef.current) {
+        socketService.leaveChannel(activeChannelRef.current.id);
+      }
     };
   }, [selectedOrg?.id, selectedClass?.id]);
 
@@ -60,8 +113,11 @@ export const DiscussionsPage: React.FC = () => {
 
   const openChannel = async (channel: DiscussionChannel) => {
     if (!selectedOrg?.id || !selectedClass?.id) return;
-    if (activeChannel) socketService.leaveChannel(activeChannel.id);
+    if (activeChannelRef.current && activeChannelRef.current.id !== channel.id) {
+      socketService.leaveChannel(activeChannelRef.current.id);
+    }
     setActiveChannel(channel);
+    activeChannelRef.current = channel;
     socketService.joinChannel(channel.id);
 
     try {

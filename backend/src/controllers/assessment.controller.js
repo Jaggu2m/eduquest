@@ -150,6 +150,51 @@ export class AssessmentController {
   };
 
   /**
+   * Add a new question to an assessment.
+   * POST /organizations/:orgId/classes/:classId/assessments/:assessmentId/questions
+   */
+  addQuestion = async (req, res) => {
+    try {
+      const { orgId, assessmentId } = req.params;
+
+      const question = await this.assessmentService.addQuestion({
+        assessmentId,
+        organizationId: orgId,
+        data: req.body,
+      });
+
+      return res.status(201).json({
+        message: 'Question added successfully.',
+        question,
+      });
+    } catch (error) {
+      const statusCode = error.statusCode || 400;
+      return res.status(statusCode).json({ message: error.message });
+    }
+  };
+
+  /**
+   * Delete a question from an assessment.
+   * DELETE /organizations/:orgId/classes/:classId/assessments/:assessmentId/questions/:questionId
+   */
+  deleteQuestion = async (req, res) => {
+    try {
+      const { orgId, assessmentId, questionId } = req.params;
+
+      await this.assessmentService.deleteQuestion({
+        assessmentId,
+        questionId,
+        organizationId: orgId,
+      });
+
+      return res.json({ message: 'Question deleted successfully.' });
+    } catch (error) {
+      const statusCode = error.statusCode || 400;
+      return res.status(statusCode).json({ message: error.message });
+    }
+  };
+
+  /**
    * Soft-delete an assessment.
    * DELETE /organizations/:orgId/classes/:classId/assessments/:assessmentId
    */

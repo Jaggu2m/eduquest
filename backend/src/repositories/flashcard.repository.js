@@ -61,9 +61,16 @@ export class FlashcardRepository {
    * Delete a deck (cascade deletes its flashcards).
    */
   async deleteDeck({ deckId, userId }) {
-    return prisma.flashcardDeck.deleteMany({
-      where: { id: deckId, userId },
+    const deck = await prisma.flashcardDeck.findUnique({
+      where: { id: deckId },
+      include: { class: true },
     });
+    if (!deck) return { count: 0 };
+    if (deck.userId !== userId && deck.class?.createdById !== userId) {
+      return { count: 0 };
+    }
+    await prisma.flashcardDeck.delete({ where: { id: deckId } });
+    return { count: 1 };
   }
 
   // ── Flashcard Operations ───────────────────────────────────────────────────

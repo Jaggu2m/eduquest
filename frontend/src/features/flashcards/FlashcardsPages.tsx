@@ -8,7 +8,7 @@ import { Card, Badge } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
-import { Layers, Sparkles, RefreshCw, Brain, RotateCcw, Loader2 } from 'lucide-react';
+import { Layers, Sparkles, RefreshCw, Brain, RotateCcw, Loader2, Trash2 } from 'lucide-react';
 
 // ── Flashcard Decks Grid (Figma D19) ─────────────────────────────────────────
 export const FlashcardsPage: React.FC = () => {
@@ -28,6 +28,18 @@ export const FlashcardsPage: React.FC = () => {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteDeck = async (deckId: string) => {
+    if (!selectedOrg?.id || !selectedClass?.id) return;
+    if (!window.confirm('Are you sure you want to delete this flashcard deck?')) return;
+    try {
+      await flashcardService.deleteDeck(selectedOrg.id, selectedClass.id, deckId);
+      setDecks((prev) => prev.filter((d) => d.id !== deckId));
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete flashcard deck.');
     }
   };
 
@@ -83,6 +95,7 @@ export const FlashcardsPage: React.FC = () => {
               key={deck.id}
               deck={deck}
               onStudy={() => navigate(`/app/flashcards/${deck.id}/study`)}
+              onDelete={() => handleDeleteDeck(deck.id)}
             />
           ))}
         </div>
@@ -103,19 +116,39 @@ export const FlashcardsPage: React.FC = () => {
   );
 };
 
-const DeckCard: React.FC<{ deck: FlashcardDeck; onStudy: () => void }> = ({ deck, onStudy }) => {
+const DeckCard: React.FC<{
+  deck: FlashcardDeck;
+  onStudy: () => void;
+  onDelete: () => void;
+}> = ({ deck, onStudy, onDelete }) => {
   const mastery = deck.masteryPercentage || 0;
   return (
-    <Card className="p-6 cursor-pointer hover:shadow-md transition group">
+    <Card className="p-6 transition group relative">
       <div className="flex items-start justify-between mb-3">
         <div className="w-10 h-10 rounded-xl bg-[#EA580C]/10 text-[#EA580C] flex items-center justify-center">
           <Layers className="w-5 h-5" />
         </div>
-        <Badge variant={mastery >= 70 ? 'ready' : mastery >= 40 ? 'scheduled' : 'neutral'}>
-          {mastery}% mastered
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant={mastery >= 70 ? 'ready' : mastery >= 40 ? 'scheduled' : 'neutral'}>
+            {mastery}% mastered
+          </Badge>
+          <button
+            type="button"
+            title="Delete deck"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="p-1.5 rounded-lg text-stone-400 hover:text-red-500 hover:bg-red-50 transition"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
       </div>
-      <h3 className="font-bold text-stone-900 mb-1 group-hover:text-[#EA580C] transition">
+      <h3
+        className="font-bold text-stone-900 mb-1 group-hover:text-[#EA580C] transition cursor-pointer"
+        onClick={onStudy}
+      >
         {deck.title}
       </h3>
       {deck.topic && <p className="text-xs text-stone-500 mb-3">{deck.topic}</p>}

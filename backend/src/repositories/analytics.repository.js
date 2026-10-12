@@ -141,6 +141,11 @@ export class AnalyticsRepository {
             isCorrect: true,
             marksAwarded: true,
             timeSpentSecs: true,
+            attempt: {
+              select: {
+                scorePercent: true,
+              },
+            },
           },
         },
       },

@@ -3,7 +3,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { assessmentService, GenerateQuizPayload } from '../../services/assessment.service';
 import { resourceService } from '../../services/resource.service';
-import { Assessment, Assignment, DocumentResource, QuizAttempt } from '../../types';
+import { Assessment, Assignment, DocumentResource, QuizAttempt, Question } from '../../types';
 import { Card, Badge } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
@@ -27,6 +27,10 @@ import {
   Maximize,
   BookOpen,
   GraduationCap,
+  Trash2,
+  Plus,
+  Pencil,
+  Edit3,
 } from 'lucide-react';
 
 // ── Assessment List Page (Figma D14) ──────────────────────────────────────────
@@ -58,6 +62,20 @@ export const AssessmentsPage: React.FC = () => {
   useEffect(() => {
     load();
   }, [selectedOrg?.id, selectedClass?.id]);
+
+  const handleDeleteAssessment = async (e: React.MouseEvent, assessmentId: string) => {
+    e.stopPropagation();
+    if (!selectedOrg?.id || !selectedClass?.id) return;
+    if (!window.confirm('Are you sure you want to delete this quiz?')) return;
+    try {
+      await assessmentService.deleteAssessment(selectedOrg.id, selectedClass.id, assessmentId);
+      setAssessments((prev) => prev.filter((a) => a.id !== assessmentId));
+      setAssignments((prev) => prev.filter((asgn) => asgn.assessmentId !== assessmentId));
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete assessment.');
+    }
+  };
 
   const getStatusBadge = (
     status: string,
@@ -305,8 +323,16 @@ export const AssessmentsPage: React.FC = () => {
                         {a.timeLimitMins ? ` · ${a.timeLimitMins}min limit` : ''}
                       </p>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       <Badge variant={getStatusBadge(a.status)}>{a.status}</Badge>
+                      <button
+                        type="button"
+                        title="Delete quiz"
+                        onClick={(e) => handleDeleteAssessment(e, a.id)}
+                        className="p-1.5 rounded-lg text-stone-400 hover:text-red-500 hover:bg-red-50 transition"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                       <ChevronRight className="w-4 h-4 text-stone-300 group-hover:text-[#EA580C] transition" />
                     </div>
                   </div>
@@ -582,6 +608,34 @@ export const AssessmentEditPage: React.FC = () => {
   const [startDate, setStartDate] = useState<string>('');
   const [dueDate, setDueDate] = useState<string>('');
 
+  // Editing state
+  const [editDetailsOpen, setEditDetailsOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [savingDetails, setSavingDetails] = useState(false);
+
+  const [questionModalOpen, setQuestionModalOpen] = useState(false);
+  const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
+  const [savingQuestion, setSavingQuestion] = useState(false);
+  const [questionError, setQuestionError] = useState('');
+
+  const [questionForm, setQuestionForm] = useState<{
+    prompt: string;
+    marks: number;
+    explanation: string;
+    options: Array<{ text: string; isCorrect: boolean }>;
+  }>({
+    prompt: '',
+    marks: 1,
+    explanation: '',
+    options: [
+      { text: '', isCorrect: true },
+      { text: '', isCorrect: false },
+      { text: '', isCorrect: false },
+      { text: '', isCorrect: false },
+    ],
+  });
+
   useEffect(() => {
     if (!selectedOrg?.id || !selectedClass?.id || !assessmentId) return;
     const load = async () => {
@@ -593,7 +647,6 @@ export const AssessmentEditPage: React.FC = () => {
           assessmentId,
         );
         setAssessment(a);
-        // Pre-fill from existing assessment
         if (a.type === 'EXAM' || a.type === 'PRACTICE') setPublishType(a.type);
         if (a.timeLimitMins) setTimeLimitMins(a.timeLimitMins);
       } catch (err) {
@@ -630,6 +683,182 @@ export const AssessmentEditPage: React.FC = () => {
     }
   };
 
+  const handleDeleteQuiz = async () => {
+    if (!selectedOrg?.id || !selectedClass?.id || !assessment) return;
+    if (!window.confirm('Are you sure you want to permanently delete this quiz?')) return;
+    try {
+      await assessmentService.deleteAssessment(selectedOrg.id, selectedClass.id, assessment.id);
+      navigate('/app/assessments');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete quiz.');
+    }
+  };
+
+  const openEditDetails = () => {
+    if (!assessment) return;
+    setEditTitle(assessment.title);
+    setEditDescription(assessment.description || '');
+    setEditDetailsOpen(true);
+  };
+
+  const handleSaveDetails = async () => {
+    if (!selectedOrg?.id || !selectedClass?.id || !assessment) return;
+    if (!editTitle.trim()) return;
+    setSavingDetails(true);
+    try {
+      const updated = await assessmentService.updateAssessment(
+        selectedOrg.id,
+        selectedClass.id,
+        assessment.id,
+        {
+          title: editTitle.trim(),
+          description: editDescription.trim() || undefined,
+        },
+      );
+      setAssessment((prev) => (prev ? { ...prev, title: updated.title, description: updated.description } : null));
+      setEditDetailsOpen(false);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update quiz details.');
+    } finally {
+      setSavingDetails(false);
+    }
+  };
+
+  const openAddQuestion = () => {
+    setEditingQuestion(null);
+    setQuestionForm({
+      prompt: '',
+      marks: 1,
+      explanation: '',
+      options: [
+        { text: '', isCorrect: true },
+        { text: '', isCorrect: false },
+        { text: '', isCorrect: false },
+        { text: '', isCorrect: false },
+      ],
+    });
+    setQuestionError('');
+    setQuestionModalOpen(true);
+  };
+
+  const openEditQuestion = (q: Question) => {
+    setEditingQuestion(q);
+    setQuestionForm({
+      prompt: q.prompt,
+      marks: q.marks || 1,
+      explanation: q.explanation || '',
+      options: q.options?.map((opt) => ({ text: opt.text, isCorrect: opt.isCorrect })) || [
+        { text: '', isCorrect: true },
+        { text: '', isCorrect: false },
+      ],
+    });
+    setQuestionError('');
+    setQuestionModalOpen(true);
+  };
+
+  const handleDeleteQuestion = async (questionId: string) => {
+    if (!selectedOrg?.id || !selectedClass?.id || !assessment) return;
+    if (!window.confirm('Are you sure you want to delete this question?')) return;
+    try {
+      await assessmentService.deleteQuestion(selectedOrg.id, selectedClass.id, assessment.id, questionId);
+      setAssessment((prev) => {
+        if (!prev) return null;
+        const newQs = (prev.questions || []).filter((q) => q.id !== questionId);
+        return {
+          ...prev,
+          questions: newQs,
+          totalMarks: newQs.reduce((s, q) => s + (q.marks || 1), 0),
+        };
+      });
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete question.');
+    }
+  };
+
+  const handleSaveQuestion = async () => {
+    if (!selectedOrg?.id || !selectedClass?.id || !assessment) return;
+    if (!questionForm.prompt.trim()) {
+      setQuestionError('Question prompt cannot be empty.');
+      return;
+    }
+    const filledOptions = questionForm.options.filter((o) => o.text.trim().length > 0);
+    if (filledOptions.length < 2) {
+      setQuestionError('Please provide at least 2 non-empty options.');
+      return;
+    }
+    const hasCorrect = filledOptions.some((o) => o.isCorrect);
+    if (!hasCorrect) {
+      setQuestionError('Please select which option is the correct answer.');
+      return;
+    }
+
+    setSavingQuestion(true);
+    setQuestionError('');
+    try {
+      if (editingQuestion) {
+        const updatedQ = await assessmentService.updateQuestion(
+          selectedOrg.id,
+          selectedClass.id,
+          assessment.id,
+          editingQuestion.id,
+          {
+            prompt: questionForm.prompt.trim(),
+            marks: Number(questionForm.marks) || 1,
+            explanation: questionForm.explanation.trim() || undefined,
+            options: filledOptions.map((opt, i) => ({
+              text: opt.text.trim(),
+              isCorrect: opt.isCorrect,
+              order: i,
+            })),
+          },
+        );
+        setAssessment((prev) => {
+          if (!prev) return null;
+          const newQs = (prev.questions || []).map((q) => (q.id === editingQuestion.id ? { ...q, ...updatedQ } : q));
+          return {
+            ...prev,
+            questions: newQs,
+            totalMarks: newQs.reduce((s, q) => s + (q.marks || 1), 0),
+          };
+        });
+      } else {
+        const newQ = await assessmentService.addQuestion(
+          selectedOrg.id,
+          selectedClass.id,
+          assessment.id,
+          {
+            prompt: questionForm.prompt.trim(),
+            marks: Number(questionForm.marks) || 1,
+            explanation: questionForm.explanation.trim() || undefined,
+            options: filledOptions.map((opt, i) => ({
+              text: opt.text.trim(),
+              isCorrect: opt.isCorrect,
+              order: i,
+            })),
+          },
+        );
+        setAssessment((prev) => {
+          if (!prev) return null;
+          const newQs = [...(prev.questions || []), newQ];
+          return {
+            ...prev,
+            questions: newQs,
+            totalMarks: newQs.reduce((s, q) => s + (q.marks || 1), 0),
+          };
+        });
+      }
+      setQuestionModalOpen(false);
+    } catch (err) {
+      console.error(err);
+      setQuestionError('Failed to save question. Please try again.');
+    } finally {
+      setSavingQuestion(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center py-24">
@@ -654,53 +883,113 @@ export const AssessmentEditPage: React.FC = () => {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs text-stone-400 mb-1 font-medium uppercase tracking-wider">
-            Review AI Quiz
-          </p>
-          <h1 className="text-2xl font-extrabold text-stone-900">{assessment.title}</h1>
-          <p className="text-stone-500 text-sm mt-0.5">
-            {assessment.questions?.length || 0} questions · {assessment.status}
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xs text-stone-400 font-bold uppercase tracking-wider">
+              {assessment.status === 'DRAFT' ? 'Review & Edit Quiz' : 'Quiz Details'}
+            </span>
+            <Badge variant={assessment.status === 'PUBLISHED' ? 'ready' : 'neutral'}>
+              {assessment.status}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-extrabold text-stone-900">{assessment.title}</h1>
+            <button
+              type="button"
+              onClick={openEditDetails}
+              title="Edit title & description"
+              className="p-1 rounded-lg text-stone-400 hover:text-[#EA580C] hover:bg-stone-100 transition"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+          </div>
+          {assessment.description && (
+            <p className="text-stone-500 text-xs mt-1 max-w-xl">{assessment.description}</p>
+          )}
+          <p className="text-stone-400 text-xs mt-1">
+            {assessment.questions?.length || 0} questions · {assessment.totalMarks || assessment.questions?.length || 0} marks
             {assessment.type && assessment.type !== 'AI_GENERATED' && assessment.type !== 'TEACHER_CREATED'
               ? ` · ${assessment.type}`
               : ''}
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex items-center gap-2">
           {assessment.status === 'DRAFT' && (
             <Button size="sm" onClick={() => setPublishModalOpen(true)}>
-              <CheckSquare className="w-3.5 h-3.5" />
+              <CheckSquare className="w-3.5 h-3.5 mr-1" />
               Publish
             </Button>
           )}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleDeleteQuiz}
+            className="text-stone-400 hover:text-red-600 hover:bg-red-50 text-xs"
+            title="Delete quiz"
+          >
+            <Trash2 className="w-4 h-4 mr-1" />
+            Delete Quiz
+          </Button>
           <Button size="sm" variant="secondary" onClick={() => navigate('/app/assessments')}>
             Back
           </Button>
         </div>
       </div>
 
-      {/* Questions */}
-      {assessment.questions?.map((q, idx) => (
-        <Card key={q.id} className="p-6">
-          <div className="flex items-start gap-3">
-            <span className="text-xs font-bold bg-[#EA580C] text-white w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5">
-              {idx + 1}
-            </span>
-            <div className="flex-1 space-y-3">
-              <p className="text-sm font-semibold text-stone-900">{q.prompt}</p>
+      {/* Questions list */}
+      <div className="space-y-4">
+        {assessment.questions?.map((q, idx) => (
+          <Card key={q.id} className="p-6 relative transition hover:border-[#EA580C]/20">
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="flex items-start gap-3 flex-1 min-w-0">
+                <span className="text-xs font-bold bg-[#EA580C] text-white w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                  {idx + 1}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-stone-900 leading-snug">{q.prompt}</p>
+                  <span className="text-[11px] font-bold text-stone-400 mt-1 inline-block">
+                    {q.marks || 1} {q.marks === 1 ? 'mark' : 'marks'}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 shrink-0 ml-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => openEditQuestion(q)}
+                  className="h-8 px-2.5 text-stone-600 hover:text-[#EA580C] text-xs font-semibold"
+                >
+                  <Pencil className="w-3.5 h-3.5 mr-1" />
+                  Edit
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDeleteQuestion(q.id)}
+                  className="h-8 px-2 text-stone-400 hover:text-red-600 hover:bg-red-50 text-xs"
+                  title="Delete question"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="pl-9 space-y-3">
               {q.options && q.options.length > 0 && (
                 <div className="space-y-2">
                   {q.options.map((opt, oi) => (
                     <div
                       key={oi}
-                      className={`px-4 py-2.5 rounded-xl text-sm border ${
+                      className={`px-4 py-2.5 rounded-xl text-sm border flex items-center justify-between ${
                         opt.isCorrect
                           ? 'border-emerald-400 bg-emerald-50/80 text-emerald-800 font-medium'
                           : 'border-[#EAE2D5] bg-[#FAF6F0] text-stone-700'
                       }`}
                     >
-                      {opt.text}
+                      <span>{opt.text}</span>
                       {opt.isCorrect && (
-                        <span className="ml-2 text-xs text-emerald-600">✓ Correct</span>
+                        <span className="inline-flex items-center gap-1 text-xs text-emerald-700 font-bold bg-emerald-100/80 px-2 py-0.5 rounded-full">
+                          <CheckCircle className="w-3.5 h-3.5" /> Correct
+                        </span>
                       )}
                     </div>
                   ))}
@@ -713,9 +1002,203 @@ export const AssessmentEditPage: React.FC = () => {
                 </div>
               )}
             </div>
+          </Card>
+        ))}
+
+        {/* Add Question Button */}
+        <div className="flex justify-center pt-2">
+          <Button
+            variant="secondary"
+            onClick={openAddQuestion}
+            className="border-dashed border-2 border-stone-300 hover:border-[#EA580C] hover:text-[#EA580C] py-3.5 px-6 rounded-2xl w-full flex items-center justify-center font-bold text-sm"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Question
+          </Button>
+        </div>
+      </div>
+
+      {/* Edit Question Modal */}
+      <Modal
+        isOpen={questionModalOpen}
+        onClose={() => setQuestionModalOpen(false)}
+        title={editingQuestion ? 'Edit Question' : 'Add New Question'}
+        maxWidth="lg"
+      >
+        <div className="space-y-4">
+          {questionError && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-xs font-medium">
+              {questionError}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+              Question Prompt *
+            </label>
+            <textarea
+              rows={3}
+              value={questionForm.prompt}
+              onChange={(e) => setQuestionForm((f) => ({ ...f, prompt: e.target.value }))}
+              placeholder="Enter the question text..."
+              className="w-full px-3.5 py-2.5 rounded-xl border border-[#EAE2D5] text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#EA580C]/20 focus:border-[#EA580C]"
+            />
           </div>
-        </Card>
-      ))}
+
+          <div className="w-36">
+            <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+              Marks (Points)
+            </label>
+            <Input
+              type="number"
+              min="0.5"
+              step="0.5"
+              value={questionForm.marks}
+              onChange={(e) => setQuestionForm((f) => ({ ...f, marks: parseFloat(e.target.value) || 1 }))}
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider">
+                Options & Correct Answer *
+              </label>
+              <span className="text-[11px] text-stone-400">Click circle to select the correct answer</span>
+            </div>
+            <div className="space-y-2.5">
+              {questionForm.options.map((opt, i) => (
+                <div key={i} className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuestionForm((f) => ({
+                        ...f,
+                        options: f.options.map((o, idx) => ({ ...o, isCorrect: idx === i })),
+                      }));
+                    }}
+                    title={opt.isCorrect ? 'Correct option' : 'Set as correct option'}
+                    className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 border-2 transition ${
+                      opt.isCorrect
+                        ? 'border-emerald-500 bg-emerald-500 text-white'
+                        : 'border-stone-300 hover:border-emerald-400 text-transparent'
+                    }`}
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                  </button>
+                  <input
+                    type="text"
+                    value={opt.text}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setQuestionForm((f) => ({
+                        ...f,
+                        options: f.options.map((o, idx) => (idx === i ? { ...o, text: val } : o)),
+                      }));
+                    }}
+                    placeholder={`Option ${i + 1}`}
+                    className={`flex-1 px-3.5 py-2 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-[#EA580C]/20 ${
+                      opt.isCorrect ? 'border-emerald-400 bg-emerald-50/30' : 'border-[#EAE2D5]'
+                    }`}
+                  />
+                  {questionForm.options.length > 2 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuestionForm((f) => {
+                          const nextOpts = f.options.filter((_, idx) => idx !== i);
+                          if (opt.isCorrect && nextOpts.length > 0) {
+                            nextOpts[0].isCorrect = true;
+                          }
+                          return { ...f, options: nextOpts };
+                        });
+                      }}
+                      className="p-1.5 rounded-lg text-stone-400 hover:text-red-500 hover:bg-red-50"
+                      title="Remove option"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            {questionForm.options.length < 6 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setQuestionForm((f) => ({
+                    ...f,
+                    options: [...f.options, { text: '', isCorrect: false }],
+                  }));
+                }}
+                className="mt-2 text-xs font-semibold text-[#EA580C] hover:bg-[#EA580C]/10"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                Add Option
+              </Button>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+              Explanation (Optional)
+            </label>
+            <textarea
+              rows={2}
+              value={questionForm.explanation}
+              onChange={(e) => setQuestionForm((f) => ({ ...f, explanation: e.target.value }))}
+              placeholder="Detailed explanation of why this answer is correct..."
+              className="w-full px-3.5 py-2 rounded-xl border border-[#EAE2D5] text-xs text-stone-700 focus:outline-none focus:ring-2 focus:ring-[#EA580C]/20"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button variant="secondary" className="flex-1" onClick={() => setQuestionModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button className="flex-1" onClick={handleSaveQuestion} isLoading={savingQuestion}>
+              {editingQuestion ? 'Save Changes' : 'Add Question'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit Quiz Details Modal */}
+      <Modal
+        isOpen={editDetailsOpen}
+        onClose={() => setEditDetailsOpen(false)}
+        title="Edit Quiz Details"
+        maxWidth="md"
+      >
+        <div className="space-y-4">
+          <Input
+            label="Quiz Title"
+            value={editTitle}
+            onChange={(e) => setEditTitle(e.target.value)}
+            placeholder="e.g. Operating Systems Chapter 2 Quiz"
+          />
+          <div>
+            <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+              Description (Optional)
+            </label>
+            <textarea
+              rows={3}
+              value={editDescription}
+              onChange={(e) => setEditDescription(e.target.value)}
+              placeholder="What is this quiz about?"
+              className="w-full px-3.5 py-2 rounded-xl border border-[#EAE2D5] text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-[#EA580C]/20"
+            />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <Button variant="secondary" className="flex-1" onClick={() => setEditDetailsOpen(false)}>
+              Cancel
+            </Button>
+            <Button className="flex-1" onClick={handleSaveDetails} isLoading={savingDetails}>
+              Save Details
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Publish Modal — Choose type */}
       <Modal

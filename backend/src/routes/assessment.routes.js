@@ -14,6 +14,7 @@ import {
   CreateAssessmentSchema,
   UpdateAssessmentSchema,
   UpdateQuestionSchema,
+  CreateQuestionSchema,
 } from '../schemas/index.js';
 
 // Composition Root
@@ -59,11 +60,24 @@ router.patch(
   assessmentController.updateAssessment,
 );
 
+// POST /api/organizations/:orgId/classes/:classId/assessments/:assessmentId/questions
+router.post(
+  '/:assessmentId/questions',
+  validate(CreateQuestionSchema),
+  assessmentController.addQuestion,
+);
+
 // PUT /api/organizations/:orgId/classes/:classId/assessments/:assessmentId/questions/:questionId
 router.put(
   '/:assessmentId/questions/:questionId',
   validate(UpdateQuestionSchema),
   assessmentController.updateQuestion,
+);
+
+// DELETE /api/organizations/:orgId/classes/:classId/assessments/:assessmentId/questions/:questionId
+router.delete(
+  '/:assessmentId/questions/:questionId',
+  assessmentController.deleteQuestion,
 );
 
 // DELETE /api/organizations/:orgId/classes/:classId/assessments/:assessmentId

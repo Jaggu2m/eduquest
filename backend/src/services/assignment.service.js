@@ -375,20 +375,37 @@ export class AssignmentService {
     const assessmentType = assignment.assessment.type || 'PRACTICE';
     const isExam = assessmentType === 'EXAM';
 
-    const sanitizedQuestions = assignment.assessment.questions.map((q) => ({
-      id: q.id,
-      prompt: q.prompt,
-      questionType: q.questionType,
-      marks: q.marks,
-      order: q.order,
-      topic: q.topic?.name || null,
-      options: q.options.map((opt) => ({
-        id: opt.id,
-        text: opt.text,
-        order: opt.order,
-        // isCorrect intentionally omitted for test security
-      })),
-    }));
+    const shuffleArray = (array) => {
+      const arr = [...array];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    };
+
+    const sanitizedQuestions = assignment.assessment.questions.map((q) => {
+      const rawOpts = q.options || [];
+      const presentedOpts =
+        q.questionType === 'MULTIPLE_CHOICE' || (q.questionType !== 'TRUE_FALSE' && rawOpts.length > 2)
+          ? shuffleArray(rawOpts)
+          : rawOpts;
+
+      return {
+        id: q.id,
+        prompt: q.prompt,
+        questionType: q.questionType,
+        marks: q.marks,
+        order: q.order,
+        topic: q.topic?.name || null,
+        options: presentedOpts.map((opt, idx) => ({
+          id: opt.id,
+          text: opt.text,
+          order: idx,
+          // isCorrect intentionally omitted for test security
+        })),
+      };
+    });
 
     return {
       id: attempt.id, // used by frontend for submit URL

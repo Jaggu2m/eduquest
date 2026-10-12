@@ -54,4 +54,8 @@ export const flashcardService = {
     );
     return res.data.data || res.data;
   },
+
+  async deleteDeck(orgId: string, classId: string, deckId: string): Promise<void> {
+    await api.delete(`/organizations/${orgId}/classes/${classId}/flashcard-decks/${deckId}`);
+  },
 };

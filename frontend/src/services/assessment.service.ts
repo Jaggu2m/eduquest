@@ -69,6 +69,61 @@ export const assessmentService = {
     return res.data.assessment || res.data;
   },
 
+  async deleteAssessment(orgId: string, classId: string, assessmentId: string): Promise<void> {
+    await api.delete(`/organizations/${orgId}/classes/${classId}/assessments/${assessmentId}`);
+  },
+
+  async updateQuestion(
+    orgId: string,
+    classId: string,
+    assessmentId: string,
+    questionId: string,
+    payload: {
+      prompt?: string;
+      marks?: number;
+      explanation?: string;
+      order?: number;
+      options?: Array<{ text: string; isCorrect: boolean; order?: number }>;
+    },
+  ): Promise<any> {
+    const res = await api.put(
+      `/organizations/${orgId}/classes/${classId}/assessments/${assessmentId}/questions/${questionId}`,
+      payload,
+    );
+    return res.data.question || res.data;
+  },
+
+  async addQuestion(
+    orgId: string,
+    classId: string,
+    assessmentId: string,
+    payload: {
+      prompt: string;
+      questionType?: string;
+      marks?: number;
+      explanation?: string;
+      order?: number;
+      options?: Array<{ text: string; isCorrect: boolean; order?: number }>;
+    },
+  ): Promise<any> {
+    const res = await api.post(
+      `/organizations/${orgId}/classes/${classId}/assessments/${assessmentId}/questions`,
+      payload,
+    );
+    return res.data.question || res.data;
+  },
+
+  async deleteQuestion(
+    orgId: string,
+    classId: string,
+    assessmentId: string,
+    questionId: string,
+  ): Promise<void> {
+    await api.delete(
+      `/organizations/${orgId}/classes/${classId}/assessments/${assessmentId}/questions/${questionId}`,
+    );
+  },
+
   async getAssignments(orgId: string, classId: string): Promise<any[]> {
     const res = await api.get(`/organizations/${orgId}/classes/${classId}/assignments`);
     return res.data.assignments || res.data || [];

@@ -228,9 +228,9 @@ export interface TopicMastery {
 export interface QuestionDifficulty {
   questionId: string;
   prompt: string;
-  itemDifficulty: number; // p-value
-  discriminationIndex: number;
-  difficultyLabel: 'EASY' | 'MODERATE' | 'HARD';
+  difficultyIndex: number | null; // p-value
+  discriminationIndex: number | null;
+  difficultyCategory: 'EASY' | 'MODERATE' | 'HARD' | 'UNATTEMPTED';
 }
 
 export interface RemedialRecommendation {

@@ -180,15 +180,33 @@ export class AnalyticsService {
 
     return questions.map((q) => {
       const totalResponses = q.responses.length;
-      const correctResponses = q.responses.filter((r) => r.isCorrect).length;
+      const scoredResponses = q.responses.filter((r) => typeof r.isCorrect === 'boolean');
+      const correctResponses = scoredResponses.filter((r) => r.isCorrect).length;
       const difficultyIndex =
-        totalResponses > 0 ? Number((correctResponses / totalResponses).toFixed(2)) : null;
+        scoredResponses.length > 0
+          ? Number((correctResponses / scoredResponses.length).toFixed(2))
+          : null;
 
       let difficultyCategory = 'UNATTEMPTED';
       if (difficultyIndex !== null) {
         if (difficultyIndex >= 0.8) difficultyCategory = 'EASY';
         else if (difficultyIndex >= 0.4) difficultyCategory = 'MODERATE';
         else difficultyCategory = 'HARD';
+      }
+
+      const rankedResponses = scoredResponses
+        .filter((r) => Number.isFinite(r.attempt?.scorePercent))
+        .sort((a, b) => b.attempt.scorePercent - a.attempt.scorePercent);
+      let discriminationIndex = null;
+      if (rankedResponses.length >= 2) {
+        const groupSize = Math.max(1, Math.ceil(rankedResponses.length * 0.27));
+        const highScoringGroup = rankedResponses.slice(0, groupSize);
+        const lowScoringGroup = rankedResponses.slice(-groupSize);
+        const highCorrectRate =
+          highScoringGroup.filter((r) => r.isCorrect).length / highScoringGroup.length;
+        const lowCorrectRate =
+          lowScoringGroup.filter((r) => r.isCorrect).length / lowScoringGroup.length;
+        discriminationIndex = Number((highCorrectRate - lowCorrectRate).toFixed(2));
       }
 
       const totalTime = q.responses.reduce((sum, r) => sum + (r.timeSpentSecs || 0), 0);
@@ -204,6 +222,7 @@ export class AnalyticsService {
         totalResponses,
         correctResponses,
         difficultyIndex,
+        discriminationIndex,
         difficultyCategory,
         averageTimeSpentSecs,
       };

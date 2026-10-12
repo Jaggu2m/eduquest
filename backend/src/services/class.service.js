@@ -1,3 +1,5 @@
+import { prisma } from '../lib/prismaClient.js';
+
 export class ClassService {
   constructor(classRepository, membershipRepository, organizationRepository) {
     this.classRepository = classRepository;
@@ -62,7 +64,7 @@ export class ClassService {
       classData.code?.trim().toUpperCase() ||
       `${(classData.name || 'CLS').replace(/[^a-zA-Z0-9]/g, '').slice(0, 3).toUpperCase() || 'CLS'}-${Math.floor(100 + Math.random() * 900)}`;
 
-    return this.classRepository.create({
+    const newClass = await this.classRepository.create({
       organizationId,
       createdById: userId,
       name: classData.name,
@@ -70,6 +72,27 @@ export class ClassService {
       description: classData.description || null,
       isActive: true,
     });
+
+    // Auto-create default #general channel for the class
+    try {
+      const channel = await prisma.channel.create({
+        data: {
+          classId: newClass.id,
+          name: 'general',
+          description: 'General class discussion',
+        },
+      });
+      await prisma.channelMember.create({
+        data: {
+          channelId: channel.id,
+          userId,
+        },
+      });
+    } catch (err) {
+      console.error('[ClassService] Failed to auto-create general channel:', err.message);
+    }
+
+    return newClass;
   }
 
   async updateClass({ classId, organizationId, user, updates }) {
@@ -167,18 +190,38 @@ export class ClassService {
 
     // Check existing enrollment
     const existing = await this.classRepository.findEnrollment(classId, studentUserId);
+    let enrollment;
     if (existing) {
       if (existing.isActive) {
         throw new Error('Student is already enrolled in this class.');
       }
-      return this.classRepository.updateEnrollment(existing.id, { isActive: true });
+      enrollment = await this.classRepository.updateEnrollment(existing.id, { isActive: true });
+    } else {
+      enrollment = await this.classRepository.createEnrollment({
+        classId,
+        userId: studentUserId,
+        isActive: true,
+      });
     }
 
-    return this.classRepository.createEnrollment({
-      classId,
-      userId: studentUserId,
-      isActive: true,
-    });
+    // Auto-join student to all existing channels in this class
+    try {
+      const channels = await prisma.channel.findMany({
+        where: { classId },
+        select: { id: true },
+      });
+      for (const ch of channels) {
+        await prisma.channelMember.upsert({
+          where: { channelId_userId: { channelId: ch.id, userId: studentUserId } },
+          create: { channelId: ch.id, userId: studentUserId },
+          update: {},
+        }).catch(() => {});
+      }
+    } catch (err) {
+      console.error('[ClassService] Failed to auto-join student to channels:', err.message);
+    }
+
+    return enrollment;
   }
 
   async removeStudent({ classId, organizationId, studentUserId, requestingUser }) {

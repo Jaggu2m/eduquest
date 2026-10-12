@@ -337,6 +337,40 @@ export class AssessmentService {
   }
 
   /**
+   * Add a new question to an assessment.
+   *
+   * @param {object} params
+   * @returns {Promise<object>}
+   */
+  async addQuestion({ assessmentId, organizationId, data }) {
+    const assessment = await this.assessmentRepository.findById(assessmentId, organizationId);
+    if (!assessment) {
+      const error = new Error('Assessment not found in this organization.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    return this.assessmentRepository.createQuestion(assessmentId, data);
+  }
+
+  /**
+   * Delete a question from an assessment.
+   *
+   * @param {object} params
+   * @returns {Promise<object>}
+   */
+  async deleteQuestion({ assessmentId, questionId, organizationId }) {
+    const assessment = await this.assessmentRepository.findById(assessmentId, organizationId);
+    if (!assessment) {
+      const error = new Error('Assessment not found in this organization.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    return this.assessmentRepository.deleteQuestion(questionId, assessmentId);
+  }
+
+  /**
    * Soft-delete an assessment.
    *
    * @param {object} params
