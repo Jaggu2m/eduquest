@@ -1,6 +1,13 @@
 # ========================================================
-# Render Blueprint Specification for EdQuest AI (100% Free Tier)
+# Render Blueprint Specification for EduQuest AI (100% Free Tier)
 # No Credit Card / Payment Info Required
+#
+# IMPORTANT — DATABASE_URL:
+# Docker web services on Render cannot resolve the *internal* PostgreSQL
+# hostname (dpg-xxx-a). After deploying, go to:
+#   Render Dashboard → eduquest-postgres → Connect tab
+# Copy the "External Database URL" and paste it as the DATABASE_URL
+# environment variable in the eduquest-backend service.
 # ========================================================
 version: "1"
 
@@ -28,9 +35,9 @@ services:
       - key: PORT
         value: 10000
       - key: DATABASE_URL
-        fromDatabase:
-          name: eduquest-postgres
-          property: connectionString
+        sync: false # ⚠️  Set this MANUALLY — use the External Database URL from:
+                    #    Render Dashboard → eduquest-postgres → Connect tab
+                    #    Docker services cannot resolve the internal hostname (-a suffix)
       - key: JWT_SECRET
         generateValue: true
       - key: REDIS_URL

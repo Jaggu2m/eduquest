@@ -92,30 +92,47 @@ app.use((err, req, res, _next) => {
 });
 
 // ── Bootstrap ────────────────────────────────────────────────────────────────
+async function connectWithRetry(retries = 5, delayMs = 3000) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      await prisma.$connect();
+      logger.info('[db]: PostgreSQL connected successfully');
+      return true;
+    } catch (err) {
+      logger.warn(
+        `[db]: Connection attempt ${attempt}/${retries} failed: ${err.message}`,
+      );
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, delayMs * attempt));
+      }
+    }
+  }
+  return false;
+}
+
 async function bootstrap() {
-  try {
-    await prisma.$connect();
-    logger.info('[db]: PostgreSQL connected successfully');
+  // Initialize Socket.IO Gateway before listening
+  initSocketGateway(io);
+  logger.info('[socket]: Socket.IO Gateway initialized');
 
-    // Initialize Socket.IO Gateway
-    initSocketGateway(io);
-    logger.info('[socket]: Socket.IO Gateway initialized');
+  // Start HTTP server immediately so Render health checks never time out
+  httpServer.listen(port, () => {
+    logger.info(`[server]: Server is running at http://localhost:${port}`);
+  });
 
-    // Initialize BullMQ Document Worker
-    documentWorker = startDocumentWorker();
-    logger.info('[worker]: BullMQ Document Worker initialized');
-
-    // Initialize BullMQ Notification Worker
-    notificationWorker = startNotificationWorker();
-    logger.info('[worker]: BullMQ Notification Worker initialized');
-
-    httpServer.listen(port, () => {
-      logger.info(`[server]: Server is running at http://localhost:${port}`);
-    });
-  } catch (error) {
-    logger.error({ error }, '[db]: Failed to connect to PostgreSQL');
+  // Connect to DB in background with retry backoff
+  const connected = await connectWithRetry(5, 3000);
+  if (!connected) {
+    logger.error('[db]: Could not connect to PostgreSQL after 5 attempts — exiting.');
     process.exit(1);
   }
+
+  // Initialize BullMQ workers after DB is confirmed ready
+  documentWorker = startDocumentWorker();
+  logger.info('[worker]: BullMQ Document Worker initialized');
+
+  notificationWorker = startNotificationWorker();
+  logger.info('[worker]: BullMQ Notification Worker initialized');
 }
 
 // ── Graceful shutdown ────────────────────────────────────────────────────────
