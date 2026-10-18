@@ -126,16 +126,27 @@ function sanitizeObject(target) {
 /**
  * Input sanitization middleware:
  * Cleans req.body, req.query, and req.params against injection and prototype pollution.
+ *
+ * NOTE: req.query and req.params are read-only getters in some router versions.
+ * We must mutate their properties in-place (Object.assign) rather than reassigning
+ * the reference, otherwise we get "Cannot set property query ... which has only a getter".
  */
 export const sanitizeInput = (req, _res, next) => {
   if (req.body && typeof req.body === 'object') {
+    // req.body is a plain parsed object — safe to reassign
     req.body = sanitizeObject(req.body);
   }
   if (req.query && typeof req.query === 'object') {
-    req.query = sanitizeObject(req.query);
+    // Mutate in-place: clear all keys, then copy sanitized values back
+    const sanitized = sanitizeObject(req.query);
+    for (const key of Object.keys(req.query)) delete req.query[key];
+    Object.assign(req.query, sanitized);
   }
   if (req.params && typeof req.params === 'object') {
-    req.params = sanitizeObject(req.params);
+    // Mutate in-place: clear all keys, then copy sanitized values back
+    const sanitized = sanitizeObject(req.params);
+    for (const key of Object.keys(req.params)) delete req.params[key];
+    Object.assign(req.params, sanitized);
   }
   next();
 };
@@ -143,6 +154,8 @@ export const sanitizeInput = (req, _res, next) => {
 /**
  * Parameter Pollution Protection
  * For select query parameters that should never be arrays, ensures single value.
+ *
+ * NOTE: req.query is a read-only getter — mutate properties in-place.
  */
 export const preventParameterPollution = (req, _res, next) => {
   if (req.query && typeof req.query === 'object') {
