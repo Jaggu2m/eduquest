@@ -1,7 +1,7 @@
 import { Worker } from 'bullmq';
 import fs from 'fs';
 import { PDFParse } from 'pdf-parse';
-import { redisConnection } from '../lib/redis.js';
+import { redisConnection, hasRedisConfig } from '../lib/redis.js';
 import { DOCUMENT_QUEUE_NAME } from '../queues/document.queue.js';
 import { prisma } from '../lib/prismaClient.js';
 import { chunkText } from '../utils/text-chunker.js';
@@ -70,6 +70,11 @@ async function extractTextFromFile(filePath, fileType) {
 }
 
 export function startDocumentWorker() {
+  if (!hasRedisConfig && process.env.NODE_ENV === 'production') {
+    console.log('[worker:document]: No REDIS_URL configured. BullMQ document worker disabled.');
+    return null;
+  }
+
   const worker = new Worker(
     DOCUMENT_QUEUE_NAME,
     async (job) => {

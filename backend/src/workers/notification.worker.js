@@ -1,5 +1,5 @@
 import { Worker } from 'bullmq';
-import { redisConnection } from '../lib/redis.js';
+import { redisConnection, hasRedisConfig } from '../lib/redis.js';
 import { NOTIFICATION_QUEUE_NAME } from '../queues/notification.queue.js';
 
 /**
@@ -70,6 +70,11 @@ async function handleAnnouncementEmailBlast(job) {
 // ── Worker factory ────────────────────────────────────────────────────────────
 
 export function startNotificationWorker() {
+  if (!hasRedisConfig && process.env.NODE_ENV === 'production') {
+    console.log('[NotificationWorker]: No REDIS_URL configured. BullMQ notification worker disabled.');
+    return null;
+  }
+
   const worker = new Worker(
     NOTIFICATION_QUEUE_NAME,
     async (job) => {

@@ -1,25 +1,27 @@
 import { Queue } from 'bullmq';
-import { redisConnection } from '../lib/redis.js';
+import { redisConnection, hasRedisConfig } from '../lib/redis.js';
 
 export const NOTIFICATION_QUEUE_NAME = 'notifications';
 
-const notificationQueue = new Queue(NOTIFICATION_QUEUE_NAME, {
-  connection: redisConnection,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: {
-      type: 'exponential',
-      delay: 3000,
-    },
-    removeOnComplete: {
-      age: 24 * 3600, // keep completed jobs for 24 hours
-      count: 5000,
-    },
-    removeOnFail: {
-      age: 7 * 24 * 3600, // keep failed jobs for 7 days
-    },
-  },
-});
+const notificationQueue = hasRedisConfig
+  ? new Queue(NOTIFICATION_QUEUE_NAME, {
+      connection: redisConnection,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 3000,
+        },
+        removeOnComplete: {
+          age: 24 * 3600, // keep completed jobs for 24 hours
+          count: 5000,
+        },
+        removeOnFail: {
+          age: 7 * 24 * 3600, // keep failed jobs for 7 days
+        },
+      },
+    })
+  : null;
 
 /**
  * Provides a clean API for enqueueing notification jobs.
@@ -37,6 +39,10 @@ export class NotificationQueue {
    * @param {string} params.contentPreview
    */
   async addMessageNotification({ messageId, channelId, senderId, recipientIds, contentPreview }) {
+    if (!notificationQueue) {
+      console.warn('[queue:notification]: No REDIS_URL configured; skipping background notification job.');
+      return null;
+    }
     return notificationQueue.add('channel-message-notification', {
       type: 'channel_message',
       messageId,
@@ -57,6 +63,10 @@ export class NotificationQueue {
    * @param {string[]} params.recipientEmails
    */
   async addAnnouncementEmailBlast({ classId, title, content, recipientEmails }) {
+    if (!notificationQueue) {
+      console.warn('[queue:notification]: No REDIS_URL configured; skipping background announcement blast.');
+      return null;
+    }
     return notificationQueue.add('announcement-email-blast', {
       type: 'announcement_email',
       classId,
