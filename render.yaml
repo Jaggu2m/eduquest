@@ -1,13 +1,6 @@
 # ========================================================
 # Render Blueprint Specification for EduQuest AI (100% Free Tier)
 # No Credit Card / Payment Info Required
-#
-# IMPORTANT — DATABASE_URL:
-# Docker web services on Render cannot resolve the *internal* PostgreSQL
-# hostname (dpg-xxx-a). After deploying, go to:
-#   Render Dashboard → eduquest-postgres → Connect tab
-# Copy the "External Database URL" and paste it as the DATABASE_URL
-# environment variable in the eduquest-backend service.
 # ========================================================
 version: "1"
 
@@ -17,7 +10,7 @@ databases:
     databaseName: eduquest
     user: eduquest_user
     plan: free
-    ipAllowList: [] # Only internal services can connect
+    ipAllowList: [] # Only internal Render services can connect
 
 services:
   # ── Backend Web Service (Docker Container, Free Plan) ────────────────────────
@@ -35,15 +28,15 @@ services:
       - key: PORT
         value: 10000
       - key: DATABASE_URL
-        sync: false # ⚠️  Set this MANUALLY — use the External Database URL from:
-                    #    Render Dashboard → eduquest-postgres → Connect tab
-                    #    Docker services cannot resolve the internal hostname (-a suffix)
+        fromDatabase:
+          name: eduquest-postgres
+          property: connectionString  # Internal hostname — only reachable from Render network
       - key: JWT_SECRET
         generateValue: true
       - key: REDIS_URL
-        sync: false # Paste free Upstash Redis URL or leave blank
+        sync: false # Optional: paste a free Upstash Redis URL, or leave blank
       - key: ALLOWED_ORIGINS
-        sync: false # Set to frontend URL after launch (or * for all origins)
+        sync: false # Set to your frontend URL after first deploy (e.g. https://eduquest-frontend.onrender.com)
       - key: GROQ_API_KEY
         sync: false # Set in Render dashboard
       - key: GEMINI_API_KEY
@@ -64,3 +57,4 @@ services:
     envVars:
       - key: VITE_API_URL
         sync: false # Set to backend URL (e.g. https://eduquest-backend.onrender.com/api)
+
