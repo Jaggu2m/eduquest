@@ -55,12 +55,14 @@ export const analyticsService = {
 
   async getClassTopics(orgId: string, classId: string): Promise<TopicMastery[]> {
     const res = await api.get(`/organizations/${orgId}/classes/${classId}/analytics/topics`);
-    return res.data.topics || res.data || [];
+    const d = res.data.topics ?? res.data.data ?? res.data;
+    return Array.isArray(d) ? d : [];
   },
 
   async getClassQuestions(orgId: string, classId: string): Promise<QuestionDifficulty[]> {
     const res = await api.get(`/organizations/${orgId}/classes/${classId}/analytics/questions`);
-    return res.data.questions || res.data || [];
+    const d = res.data.questions ?? res.data.data ?? res.data;
+    return Array.isArray(d) ? d : [];
   },
 
   async getStudentAnalytics(
@@ -71,6 +73,15 @@ export const analyticsService = {
     const res = await api.get(
       `/organizations/${orgId}/classes/${classId}/analytics/students/${studentId}`,
     );
-    return res.data;
+    const raw = res.data?.data ?? res.data ?? {};
+    // Guarantee all nested array fields are arrays regardless of API shape
+    return {
+      ...raw,
+      strengths: Array.isArray(raw.strengths) ? raw.strengths : [],
+      weaknesses: Array.isArray(raw.weaknesses) ? raw.weaknesses : [],
+      topicMastery: Array.isArray(raw.topicMastery) ? raw.topicMastery : [],
+      attemptHistory: Array.isArray(raw.attemptHistory) ? raw.attemptHistory : [],
+      recommendations: Array.isArray(raw.recommendations) ? raw.recommendations : [],
+    };
   },
 };

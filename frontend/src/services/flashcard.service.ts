@@ -12,7 +12,8 @@ export interface GenerateFlashcardDeckPayload {
 export const flashcardService = {
   async listDecks(orgId: string, classId: string): Promise<FlashcardDeck[]> {
     const res = await api.get(`/organizations/${orgId}/classes/${classId}/flashcard-decks`);
-    return res.data.data || res.data.decks || [];
+    const d = res.data.decks ?? res.data.data ?? res.data;
+    return Array.isArray(d) ? d : [];
   },
 
   async getDeck(orgId: string, classId: string, deckId: string): Promise<FlashcardDeck> {
@@ -38,7 +39,8 @@ export const flashcardService = {
     const res = await api.get(
       `/organizations/${orgId}/classes/${classId}/flashcard-decks/${deckId}/due`,
     );
-    return res.data.data || res.data.dueCards || [];
+    const d = res.data.dueCards ?? res.data.data ?? res.data;
+    return Array.isArray(d) ? d : [];
   },
 
   async reviewCard(

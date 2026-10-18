@@ -4,7 +4,8 @@ import { DocumentResource } from '../types';
 export const resourceService = {
   async getDocuments(orgId: string, classId: string): Promise<DocumentResource[]> {
     const res = await api.get(`/organizations/${orgId}/classes/${classId}/documents`);
-    return res.data.documents || res.data || [];
+    const d = res.data.documents ?? res.data.data ?? res.data;
+    return Array.isArray(d) ? d : [];
   },
 
   async uploadDocument(
@@ -33,6 +34,7 @@ export const resourceService = {
     const res = await api.get(
       `/organizations/${orgId}/classes/${classId}/documents/${docId}/chunks`,
     );
-    return res.data.chunks || res.data || [];
+    const d = res.data.chunks ?? res.data.data ?? res.data;
+    return Array.isArray(d) ? d : [];
   },
 };

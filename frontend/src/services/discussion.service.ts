@@ -4,7 +4,8 @@ import { DiscussionChannel, DiscussionMessage } from '../types';
 export const discussionService = {
   async listChannels(orgId: string, classId: string): Promise<DiscussionChannel[]> {
     const res = await api.get(`/organizations/${orgId}/classes/${classId}/channels`);
-    return res.data.data || res.data.channels || [];
+    const d = res.data.channels ?? res.data.data ?? res.data;
+    return Array.isArray(d) ? d : [];
   },
 
   async createChannel(

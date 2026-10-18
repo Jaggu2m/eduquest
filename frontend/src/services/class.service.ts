@@ -4,7 +4,8 @@ import { ClassRoom, Enrollment } from '../types';
 export const classService = {
   async getClasses(orgId: string): Promise<ClassRoom[]> {
     const res = await api.get(`/organizations/${orgId}/classes`);
-    return res.data.classes || res.data || [];
+    const d = res.data.classes ?? res.data.data ?? res.data;
+    return Array.isArray(d) ? d : [];
   },
 
   async getClassById(orgId: string, classId: string): Promise<ClassRoom> {
@@ -22,7 +23,8 @@ export const classService = {
 
   async getEnrollments(orgId: string, classId: string): Promise<Enrollment[]> {
     const res = await api.get(`/organizations/${orgId}/classes/${classId}/enrollments`);
-    return res.data.enrollments || res.data || [];
+    const d = res.data.enrollments ?? res.data.data ?? res.data;
+    return Array.isArray(d) ? d : [];
   },
 
   async enrollStudent(orgId: string, classId: string, userId: string): Promise<Enrollment> {

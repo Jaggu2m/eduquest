@@ -4,7 +4,8 @@ import { Organization } from '../types';
 export const orgService = {
   async getOrganizations(): Promise<Organization[]> {
     const res = await api.get('/organizations');
-    return res.data.organizations || res.data || [];
+    const d = res.data.organizations ?? res.data.data ?? res.data;
+    return Array.isArray(d) ? d : [];
   },
 
   async getOrganizationById(id: string): Promise<Organization> {
@@ -23,6 +24,7 @@ export const orgService = {
 
   async getMembers(orgId: string): Promise<any[]> {
     const res = await api.get(`/organizations/${orgId}/members`);
-    return res.data.members || res.data || [];
+    const d = res.data.members ?? res.data.data ?? res.data;
+    return Array.isArray(d) ? d : [];
   },
 };

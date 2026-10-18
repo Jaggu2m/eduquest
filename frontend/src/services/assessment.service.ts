@@ -17,7 +17,8 @@ export interface GenerateQuizPayload {
 export const assessmentService = {
   async getAssessments(orgId: string, classId: string): Promise<Assessment[]> {
     const res = await api.get(`/organizations/${orgId}/classes/${classId}/assessments`);
-    return res.data.assessments || res.data || [];
+    const d = res.data.assessments ?? res.data.data ?? res.data;
+    return Array.isArray(d) ? d : [];
   },
 
   async getAssessmentById(
@@ -126,7 +127,8 @@ export const assessmentService = {
 
   async getAssignments(orgId: string, classId: string): Promise<any[]> {
     const res = await api.get(`/organizations/${orgId}/classes/${classId}/assignments`);
-    return res.data.assignments || res.data || [];
+    const d = res.data.assignments ?? res.data.data ?? res.data;
+    return Array.isArray(d) ? d : [];
   },
 
   async createAssignment(
