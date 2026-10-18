@@ -42,7 +42,11 @@ const router = createBrowserRouter([
   { path: '/', element: <LandingPage />, errorElement: <RouteErrorBoundary /> },
   { path: '/login', element: <LoginPage />, errorElement: <RouteErrorBoundary /> },
   { path: '/register', element: <RegisterPage />, errorElement: <RouteErrorBoundary /> },
-  { path: '/organizations', element: <OrganizationSelectorPage />, errorElement: <RouteErrorBoundary /> },
+  {
+    path: '/organizations',
+    element: <OrganizationSelectorPage />,
+    errorElement: <RouteErrorBoundary />,
+  },
 
   // Protected app routes (all under AppLayout)
   {
@@ -59,7 +63,10 @@ const router = createBrowserRouter([
       { path: 'assessments', element: <AssessmentsPage /> },
       { path: 'assessments/:assessmentId/edit', element: <AssessmentEditPage /> },
       { path: 'assessments/:assessmentId/take/:assignmentId', element: <QuizTakingPage /> },
-      { path: 'assessments/:assignmentId/attempts/:attemptId/results', element: <QuizResultsPage /> },
+      {
+        path: 'assessments/:assignmentId/attempts/:attemptId/results',
+        element: <QuizResultsPage />,
+      },
       { path: 'flashcards', element: <FlashcardsPage /> },
       { path: 'flashcards/:deckId/study', element: <FlashcardStudyPage /> },
       { path: 'discussions', element: <DiscussionsPage /> },

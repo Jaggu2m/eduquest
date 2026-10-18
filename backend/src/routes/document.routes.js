@@ -5,6 +5,7 @@ import { DocumentRepository } from '../repositories/document.repository.js';
 import { ClassRepository } from '../repositories/class.repository.js';
 import { requireAuth } from '../middleware/auth.middleware.js';
 import { upload } from '../middleware/upload.middleware.js';
+import { uploadLimiter } from '../middleware/rate-limit.middleware.js';
 
 // Composition Root for Document domain
 const documentRepository = new DocumentRepository();
@@ -23,7 +24,7 @@ router.use(requireAuth);
 router.get('/', documentController.getDocumentsByClass);
 
 // POST /api/organizations/:orgId/classes/:classId/documents (single file upload)
-router.post('/', upload.single('file'), documentController.uploadDocument);
+router.post('/', uploadLimiter, upload.single('file'), documentController.uploadDocument);
 
 // GET /api/organizations/:orgId/classes/:classId/documents/:docId
 router.get('/:docId', documentController.getDocumentById);

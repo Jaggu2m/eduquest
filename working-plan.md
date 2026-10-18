@@ -132,16 +132,37 @@ Curriculum-grounded quiz generation and RAG-based Chat with PDF.
 - Feed aggregated analytics into Gemini to generate actionable teaching insights (remedial recommendations).
 - Build advanced React analytics dashboards visualizing these insights.
 
-**Phase 12: Redis, background jobs, security, testing, optimization**
+**Phase 12: Redis, background jobs, security, testing, optimization** ✅ *(Completed)*
 
-- Implement Redis caching for high-traffic read routes and BullMQ for async workflows.
-- Harden security (Rate limiting, CSRF protection, input validation).
-- Write comprehensive Jest unit tests and Supertest integration tests.
-- Add database indexing and optimize query performance.
+- [x] Implement Redis caching for high-traffic read routes and BullMQ for async workflows.
+- [x] Harden security:
+  - CSRF origin verification middleware with Bearer-token bypass for API clients.
+  - Deep input sanitization (null byte stripping, whitespace trimming, prototype pollution prevention).
+  - Parameter pollution prevention (collapsing duplicate query string params).
+  - Helmet Content-Security-Policy (CSP) headers tailored for API & frontend assets.
+  - Dedicated rate limiters (auth attempts, AI generation endpoints, document upload endpoints).
+- [x] Write comprehensive test suites:
+  - Unit tests for security middleware (17 tests covering CSRF, sanitization, pollution).
+  - Unit tests for AuthService (6 tests covering registration, login, hashing, duplicate prevention).
+  - Integration tests for `/api/auth` routes using Supertest (12 tests covering register, login, me).
+  - All 35 tests passing cleanly with Jest ESM VM modules.
+- [x] Add database indexing and optimize query performance:
+  - Added comprehensive `@@index` annotations across all Prisma models (org/class/user lookups, status filters, analytics, message histories, flashcard spaced repetition).
+  - Validated schema with Prisma 7.
 
-**Phase 13: CI/CD, deployment, monitoring, and documentation**
+**Phase 13: CI/CD, deployment, monitoring, and documentation** ✅ *(Completed)*
 
-- Setup GitHub Actions for automated testing and CI/CD pipelines.
-- Integrate Pino for structured runtime logging and diagnostics.
-- Deploy backend and frontend to Render (or similar hosting).
-- Finalize technical documentation and user guides.
+- [x] Setup GitHub Actions for automated testing and CI/CD pipelines:
+  - Created `.github/workflows/ci.yml` running linting, schema validation, Jest test suite, and frontend production build on push/PR.
+- [x] Integrate Pino for structured runtime logging and diagnostics:
+  - Created centralized logger in `backend/src/lib/logger.js` with PII/secret redaction and `pino-pretty` development transport.
+  - Added `pinoHttp` request logging and structured error logging in `backend/src/server.js`.
+  - Built diagnostic `/api/health` endpoint monitoring real-time PostgreSQL and Redis connectivity.
+- [x] Deploy backend and frontend to Render (or similar hosting) & Docker:
+  - Created `backend/Dockerfile` and `backend/.dockerignore` with Prisma generate and non-root execution.
+  - Created `frontend/Dockerfile`, `frontend/.dockerignore`, and `frontend/nginx.conf` for SPA routing & gzip caching.
+  - Updated `docker-compose.yml` for 1-command full-stack container orchestration.
+  - Created `render.yaml` Blueprint specification for 1-click Render cloud deployment.
+- [x] Finalize technical documentation and user guides:
+  - Created comprehensive `README.md` with architecture diagram, feature catalog, quickstart guide, and testing instructions.
+  - Created `DEPLOYMENT.md` with step-by-step production runbooks for Render, Docker Compose, and Linux VPS.

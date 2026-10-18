@@ -20,9 +20,7 @@ export const RouteErrorBoundary: React.FC = () => {
         <h1 className="text-xl font-black text-stone-900 tracking-tight mb-2">
           Something went wrong
         </h1>
-        <p className="text-sm text-stone-500 mb-6 leading-relaxed">
-          {errorMessage}
-        </p>
+        <p className="text-sm text-stone-500 mb-6 leading-relaxed">{errorMessage}</p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           <Button
@@ -33,10 +31,7 @@ export const RouteErrorBoundary: React.FC = () => {
             <RefreshCw className="w-4 h-4 mr-1.5" />
             Reload Page
           </Button>
-          <Button
-            onClick={() => navigate('/app/dashboard')}
-            className="w-full sm:w-auto"
-          >
+          <Button onClick={() => navigate('/app/dashboard')} className="w-full sm:w-auto">
             <Home className="w-4 h-4 mr-1.5" />
             Go to Dashboard
           </Button>

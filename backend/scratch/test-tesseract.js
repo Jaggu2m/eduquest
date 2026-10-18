@@ -5,16 +5,16 @@ import { createWorker } from 'tesseract.js';
 async function test() {
   const filePath = './uploads/1791653465806-49401393-OS_BOOKMARKED_NOTE.pdf__14_.pdf';
   const fileBuffer = await fs.promises.readFile(filePath);
-  
+
   const parser = new PDFParse({ data: fileBuffer });
-  
+
   const screenshots = await parser.getScreenshot({
     scale: 2.0,
-    imageBuffer: true
+    imageBuffer: true,
   });
 
   const worker = await createWorker('eng');
-  
+
   // Test pages 2 and 3
   for (const pageNum of [2, 3]) {
     const pageImg = screenshots.pages?.[pageNum - 1];

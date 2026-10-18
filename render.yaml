@@ -1,0 +1,72 @@
+# ========================================================
+# Render Blueprint Specification for EdQuest AI
+# https://render.com/docs/blueprint-spec
+# ========================================================
+version: "1"
+
+databases:
+  - name: eduquest-postgres
+    databaseName: eduquest
+    user: eduquest_user
+    plan: starter
+    ipAllowList: [] # Only internal services can connect
+
+services:
+  # ── Backend Web Service (Node.js API + Socket.IO + BullMQ) ─────────────────
+  - type: web
+    name: eduquest-backend
+    runtime: node
+    plan: starter
+    rootDir: backend
+    buildCommand: "npm install && npx prisma generate"
+    startCommand: "npm start"
+    healthCheckPath: "/api/health"
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: eduquest-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: eduquest-redis
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        sync: false # Set to frontend URL after frontend creation
+      - key: GROQ_API_KEY
+        sync: false # Set in Render dashboard
+      - key: GEMINI_API_KEY
+        sync: false # Set in Render dashboard
+
+  # ── Redis Key-Value Store (Caching, Pub/Sub, BullMQ queues) ─────────────────
+  - type: redis
+    name: eduquest-redis
+    plan: starter
+    ipAllowList: [] # Only internal services can connect
+    maxmemoryPolicy: noeviction
+
+  # ── Frontend Static Site (React + Vite SPA) ─────────────────────────────────
+  - type: web
+    name: eduquest-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: "npm install && npm run build"
+    staticPublishPath: "./dist"
+    autoDeploy: true
+    routes:
+      - type: rewrite
+        source: "/*"
+        destination: "/index.html"
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: eduquest-backend
+          property: url

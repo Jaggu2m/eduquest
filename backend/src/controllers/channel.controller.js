@@ -35,7 +35,12 @@ export class ChannelController {
       const userId = req.user.userId;
       const { name, description } = req.body;
 
-      const channel = await this.channelService.createChannel({ classId, userId, name, description });
+      const channel = await this.channelService.createChannel({
+        classId,
+        userId,
+        name,
+        description,
+      });
 
       // Notify connected class members about the new channel
       if (req.io) {
@@ -99,7 +104,12 @@ export class ChannelController {
       const { content, parentId } = req.body;
 
       // 1. Persist to PostgreSQL via service
-      const message = await this.channelService.postMessage({ channelId, senderId, content, parentId });
+      const message = await this.channelService.postMessage({
+        channelId,
+        senderId,
+        content,
+        parentId,
+      });
 
       // 2. Broadcast via Socket.IO to all connected members in this channel
       //    The message is already enriched with sender info from the repository

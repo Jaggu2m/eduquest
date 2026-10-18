@@ -53,10 +53,9 @@ export class ChannelService {
       membership?.role === 'OWNER';
 
     if (!isTeacher) {
-      throw Object.assign(
-        new Error('Only the class teacher can create channels.'),
-        { statusCode: 403 },
-      );
+      throw Object.assign(new Error('Only the class teacher can create channels.'), {
+        statusCode: 403,
+      });
     }
 
     const channel = await this.channelRepo.create({ classId, name, description });
@@ -128,10 +127,9 @@ export class ChannelService {
 
     const cls = await this.classRepo.findById(channel.classId);
     if (cls.createdById !== requestingUserId) {
-      throw Object.assign(
-        new Error('Only the class teacher can add members.'),
-        { statusCode: 403 },
-      );
+      throw Object.assign(new Error('Only the class teacher can add members.'), {
+        statusCode: 403,
+      });
     }
 
     return this.channelRepo.addMember(channelId, targetUserId);
@@ -149,7 +147,9 @@ export class ChannelService {
 
     const cls = await this.classRepo.findById(channel.classId);
     if (cls.createdById !== userId) {
-      throw Object.assign(new Error('Only the class teacher can delete channels.'), { statusCode: 403 });
+      throw Object.assign(new Error('Only the class teacher can delete channels.'), {
+        statusCode: 403,
+      });
     }
 
     return this.channelRepo.delete(channelId);
@@ -173,10 +173,7 @@ export class ChannelService {
     // 1. Authorization: sender must be a channel member
     const isMember = await this.channelRepo.isMember(channelId, senderId);
     if (!isMember) {
-      throw Object.assign(
-        new Error('You are not a member of this channel.'),
-        { statusCode: 403 },
-      );
+      throw Object.assign(new Error('You are not a member of this channel.'), { statusCode: 403 });
     }
 
     // 2. Persist to PostgreSQL — source of truth
@@ -222,10 +219,7 @@ export class ChannelService {
     // Authorization: must be a channel member to read history
     const isMember = await this.channelRepo.isMember(channelId, userId);
     if (!isMember) {
-      throw Object.assign(
-        new Error('You are not a member of this channel.'),
-        { statusCode: 403 },
-      );
+      throw Object.assign(new Error('You are not a member of this channel.'), { statusCode: 403 });
     }
 
     return this.channelRepo.getMessages(channelId, { cursor, limit });

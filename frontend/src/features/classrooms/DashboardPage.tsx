@@ -528,17 +528,15 @@ export const StudentDashboard: React.FC = () => {
       </div>
 
       {/* Leave Class Confirmation Modal */}
-      <Modal
-        isOpen={!!classToLeave}
-        onClose={() => setClassToLeave(null)}
-        title="Leave Class"
-      >
+      <Modal isOpen={!!classToLeave} onClose={() => setClassToLeave(null)} title="Leave Class">
         <div className="space-y-4">
           <p className="text-sm text-stone-600">
-            Are you sure you want to leave <strong className="text-stone-900">{classToLeave?.name}</strong>?
+            Are you sure you want to leave{' '}
+            <strong className="text-stone-900">{classToLeave?.name}</strong>?
           </p>
           <div className="text-xs text-stone-600 bg-amber-50 border border-amber-200/80 rounded-xl p-3">
-            You will lose access to assignments, flashcards, discussions, and the AI tutor for this class until your teacher provides the invite code to re-join.
+            You will lose access to assignments, flashcards, discussions, and the AI tutor for this
+            class until your teacher provides the invite code to re-join.
           </div>
           <div className="flex gap-3 justify-end pt-2">
             <Button
@@ -549,12 +547,7 @@ export const StudentDashboard: React.FC = () => {
             >
               Cancel
             </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={handleLeaveClass}
-              isLoading={leaving}
-            >
+            <Button variant="danger" size="sm" onClick={handleLeaveClass} isLoading={leaving}>
               Leave class
             </Button>
           </div>

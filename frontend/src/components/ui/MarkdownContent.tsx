@@ -29,14 +29,10 @@ export const MarkdownContent: React.FC<MarkdownContentProps> = ({ content, class
             </h3>
           ),
           h4: ({ children }) => (
-            <h4 className="text-sm font-bold text-stone-800 mt-3 mb-1.5">
-              {children}
-            </h4>
+            <h4 className="text-sm font-bold text-stone-800 mt-3 mb-1.5">{children}</h4>
           ),
           p: ({ children }) => (
-            <p className="text-stone-700 leading-relaxed my-2 text-sm">
-              {children}
-            </p>
+            <p className="text-stone-700 leading-relaxed my-2 text-sm">{children}</p>
           ),
           ul: ({ children }) => (
             <ul className="list-disc list-inside space-y-1.5 my-3 pl-2 text-stone-700 text-sm">
@@ -56,12 +52,8 @@ export const MarkdownContent: React.FC<MarkdownContentProps> = ({ content, class
           strong: ({ children }) => (
             <strong className="font-bold text-stone-900">{children}</strong>
           ),
-          em: ({ children }) => (
-            <em className="italic text-stone-600">{children}</em>
-          ),
-          hr: () => (
-            <hr className="my-5 border-[#EAE2D5]" />
-          ),
+          em: ({ children }) => <em className="italic text-stone-600">{children}</em>,
+          hr: () => <hr className="my-5 border-[#EAE2D5]" />,
           blockquote: ({ children }) => (
             <blockquote className="border-l-4 border-[#EA580C] bg-orange-50/50 pl-4 py-2 my-3 rounded-r-xl italic text-stone-700">
               {children}
@@ -69,9 +61,7 @@ export const MarkdownContent: React.FC<MarkdownContentProps> = ({ content, class
           ),
           table: ({ children }) => (
             <div className="my-4 overflow-x-auto rounded-2xl border border-[#EAE2D5] bg-white shadow-xs">
-              <table className="w-full text-left text-sm border-collapse">
-                {children}
-              </table>
+              <table className="w-full text-left text-sm border-collapse">{children}</table>
             </div>
           ),
           thead: ({ children }) => (
@@ -80,20 +70,12 @@ export const MarkdownContent: React.FC<MarkdownContentProps> = ({ content, class
             </thead>
           ),
           tbody: ({ children }) => (
-            <tbody className="divide-y divide-[#EAE2D5]/70 bg-white">
-              {children}
-            </tbody>
+            <tbody className="divide-y divide-[#EAE2D5]/70 bg-white">{children}</tbody>
           ),
           tr: ({ children }) => (
-            <tr className="hover:bg-[#FAF6F0]/60 transition-colors">
-              {children}
-            </tr>
+            <tr className="hover:bg-[#FAF6F0]/60 transition-colors">{children}</tr>
           ),
-          th: ({ children }) => (
-            <th className="py-3 px-4 font-bold text-stone-850">
-              {children}
-            </th>
-          ),
+          th: ({ children }) => <th className="py-3 px-4 font-bold text-stone-850">{children}</th>,
           td: ({ children }) => (
             <td className="py-3 px-4 text-stone-700 text-sm align-top leading-normal">
               {children}

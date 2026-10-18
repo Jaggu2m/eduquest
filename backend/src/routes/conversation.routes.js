@@ -9,6 +9,7 @@ import { EmbeddingService } from '../services/embedding.service.js';
 import { AIService } from '../services/ai.service.js';
 import { requireAuth } from '../middleware/auth.middleware.js';
 import { validate } from '../middleware/validate.middleware.js';
+import { aiLimiter } from '../middleware/rate-limit.middleware.js';
 import { CreateConversationSchema, SendMessageSchema } from '../schemas/index.js';
 
 // Composition root
@@ -50,6 +51,7 @@ router.delete('/:conversationId', conversationController.deleteConversation);
 // POST /api/organizations/:orgId/classes/:classId/conversations/:conversationId/messages
 router.post(
   '/:conversationId/messages',
+  aiLimiter, // AI Tutor RAG calls are expensive - throttle per IP
   validate(SendMessageSchema),
   conversationController.sendMessage,
 );

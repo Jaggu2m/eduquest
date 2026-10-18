@@ -12,7 +12,7 @@ const notificationQueue = new Queue(NOTIFICATION_QUEUE_NAME, {
       delay: 3000,
     },
     removeOnComplete: {
-      age: 24 * 3600,   // keep completed jobs for 24 hours
+      age: 24 * 3600, // keep completed jobs for 24 hours
       count: 5000,
     },
     removeOnFail: {

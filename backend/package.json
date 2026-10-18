@@ -4,9 +4,11 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:watch": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --watch",
+    "test:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage",
     "dev": "nodemon src/server.js",
-    "start": "node src/server.js",
+    "start": "npx prisma db push && node src/server.js",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
@@ -33,6 +35,8 @@
     "multer": "^2.4.0",
     "pdf-parse": "^2.4.5",
     "pg": "^8.23.1",
+    "pino": "^10.4.0",
+    "pino-http": "^11.0.0",
     "rate-limit-redis": "^6.0.1",
     "socket.io": "^4.8.4",
     "tesseract.js": "^7.0.0",
@@ -40,11 +44,16 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@jest/globals": "^30.5.2",
+    "cross-env": "^10.1.0",
     "eslint": "^10.12.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.6",
+    "jest": "^30.5.2",
     "nodemon": "^3.1.14",
+    "pino-pretty": "^13.2.0",
     "prettier": "^3.9.9",
-    "prisma": "^7.10.0"
+    "prisma": "^7.10.0",
+    "supertest": "^7.3.1"
   }
 }

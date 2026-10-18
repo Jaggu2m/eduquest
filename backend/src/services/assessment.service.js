@@ -309,7 +309,9 @@ export class AssessmentService {
           data: {
             maxAttempts: isExam ? 1 : 999,
             revealAnswers: !isExam,
-            ...(startDate !== undefined ? { startDate: startDate ? new Date(startDate) : new Date() } : {}),
+            ...(startDate !== undefined
+              ? { startDate: startDate ? new Date(startDate) : new Date() }
+              : {}),
             ...(dueDate !== undefined ? { dueDate: dueDate ? new Date(dueDate) : null } : {}),
           },
         });

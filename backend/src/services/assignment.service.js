@@ -387,7 +387,8 @@ export class AssignmentService {
     const sanitizedQuestions = assignment.assessment.questions.map((q) => {
       const rawOpts = q.options || [];
       const presentedOpts =
-        q.questionType === 'MULTIPLE_CHOICE' || (q.questionType !== 'TRUE_FALSE' && rawOpts.length > 2)
+        q.questionType === 'MULTIPLE_CHOICE' ||
+        (q.questionType !== 'TRUE_FALSE' && rawOpts.length > 2)
           ? shuffleArray(rawOpts)
           : rawOpts;
 

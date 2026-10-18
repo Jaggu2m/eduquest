@@ -275,7 +275,8 @@ export const StudentsPage: React.FC = () => {
                 {filteredEnrollments.map((e) => {
                   const student = e.user;
                   const fullName = `${student.firstName} ${student.lastName}`;
-                  const initials = `${student.firstName?.[0] || ''}${student.lastName?.[0] || ''}`.toUpperCase();
+                  const initials =
+                    `${student.firstName?.[0] || ''}${student.lastName?.[0] || ''}`.toUpperCase();
                   const enrolledDate = e.enrolledAt || (e as any).joinedAt || (e as any).createdAt;
                   const formattedDate = enrolledDate
                     ? new Date(enrolledDate).toLocaleDateString('en-US', {
@@ -414,11 +415,7 @@ export const StudentsPage: React.FC = () => {
                       </div>
                     </div>
 
-                    <Button
-                      size="sm"
-                      onClick={() => handleEnrollStudent(u)}
-                      disabled={isAdding}
-                    >
+                    <Button size="sm" onClick={() => handleEnrollStudent(u)} disabled={isAdding}>
                       {isAdding ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       ) : (
@@ -463,8 +460,8 @@ export const StudentsPage: React.FC = () => {
           </p>
 
           <div className="text-xs text-stone-600 bg-amber-50 border border-amber-200/80 rounded-xl p-3">
-            The student will immediately lose access to this classroom&apos;s materials, quizzes, and
-            discussions. You can re-enroll them at any time.
+            The student will immediately lose access to this classroom&apos;s materials, quizzes,
+            and discussions. You can re-enroll them at any time.
           </div>
 
           <div className="flex gap-3 justify-end pt-2">
@@ -476,12 +473,7 @@ export const StudentsPage: React.FC = () => {
             >
               Cancel
             </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={handleRemoveStudent}
-              isLoading={removing}
-            >
+            <Button variant="danger" size="sm" onClick={handleRemoveStudent} isLoading={removing}>
               Remove student
             </Button>
           </div>

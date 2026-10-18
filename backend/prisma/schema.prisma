@@ -132,6 +132,8 @@ model Membership {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([userId, organizationId])
+  @@index([organizationId]) // List all members of an org
+  @@index([userId])         // List all orgs a user belongs to
   @@map("memberships")
 }
 
@@ -153,6 +155,8 @@ model OrgInvitation {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   invitedBy    User         @relation("InvitedByUser", fields: [invitedById], references: [id])
 
+  @@index([organizationId, status]) // List pending/accepted invites for an org
+  @@index([email])                  // Look up invites by email address
   @@map("org_invitations")
 }
 
@@ -185,6 +189,8 @@ model Class {
   channels       Channel[]
   announcements  Announcement[]
 
+  @@index([organizationId]) // List all classes for a given org/tenant
+  @@index([createdById])    // Teacher dashboard: classes I created
   @@map("classes")
 }
 
@@ -202,6 +208,8 @@ model Enrollment {
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([classId, userId])
+  @@index([userId])   // All classes a student is enrolled in
+  @@index([classId])  // All students in a class (roster)
   @@map("enrollments")
 }
 
@@ -249,6 +257,9 @@ model Document {
   assessments    Assessment[]
   flashcardDecks FlashcardDeck[]
 
+  @@index([classId, status])      // Fetch READY documents for a class (RAG & quiz gen)
+  @@index([organizationId])       // Org-level document listing
+  @@index([uploadedById])         // Documents uploaded by a specific teacher
   @@map("documents")
 }
 
@@ -302,6 +313,10 @@ model Assessment {
   questions      Question[]
   assignments    AssessmentAssignment[]
 
+  @@index([classId, status])      // Fetch published assessments for a class
+  @@index([organizationId])       // Org-wide assessment listing
+  @@index([createdById])          // Assessments created by a specific teacher
+  @@index([documentId])           // Assessments generated from a specific document
   @@map("assessments")
 }
 
@@ -324,6 +339,8 @@ model Question {
   options    QuestionOption[]
   responses  QuestionResponse[]
 
+  @@index([assessmentId])  // Fetch all questions for an assessment (quiz display)
+  @@index([topicId])       // Topic-wise analytics
   @@map("questions")
 }
 
@@ -339,6 +356,7 @@ model QuestionOption {
   // Relations
   question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
+  @@index([questionId]) // Fetch all options for a question in quiz display
   @@map("question_options")
 }
 
@@ -364,6 +382,8 @@ model AssessmentAssignment {
   class      Class               @relation(fields: [classId], references: [id], onDelete: Cascade)
   attempts   AssessmentAttempt[]
 
+  @@index([classId])       // Assignments scheduled for a class
+  @@index([assessmentId])  // Assignments that use a specific assessment
   @@map("assessment_assignments")
 }
 
@@ -386,6 +406,10 @@ model AssessmentAttempt {
   user       User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   responses  QuestionResponse[]
 
+  @@index([assignmentId])         // All attempts for an assignment (analytics)
+  @@index([userId])               // All attempts by a student
+  @@index([assignmentId, userId]) // Has this student attempted this assignment?
+  @@index([status])               // Filter by IN_PROGRESS / SUBMITTED (cleanup jobs)
   @@map("assessment_attempts")
 }
 
@@ -407,6 +431,7 @@ model QuestionResponse {
   question Question          @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@unique([attemptId, questionId])
+  @@index([questionId]) // Item-level analytics: all responses per question (P-value calculation)
   @@map("question_responses")
 }
 
@@ -429,6 +454,8 @@ model Conversation {
   class    Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
   messages Message[]
 
+  @@index([userId, classId])  // AI Tutor: fetch my conversations in this class
+  @@index([classId])          // All conversations in a class
   @@map("conversations")
 }
 
@@ -445,6 +472,7 @@ model Message {
   // Relations
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
+  @@index([conversationId, createdAt]) // Chat history: chronological message fetch
   @@map("messages")
 }
 
@@ -466,6 +494,8 @@ model FlashcardDeck {
   document   Document?   @relation(fields: [documentId], references: [id], onDelete: SetNull)
   flashcards Flashcard[]
 
+  @@index([userId, classId])  // Fetch student's decks in a class
+  @@index([classId])          // All decks in a class
   @@map("flashcard_decks")
 }
 
@@ -485,6 +515,8 @@ model Flashcard {
   // Relations
   deck FlashcardDeck @relation(fields: [deckId], references: [id], onDelete: Cascade)
 
+  @@index([deckId, nextReviewAt]) // Spaced-repetition: fetch due cards for study session
+  @@index([deckId, masteryLevel]) // Filter cards by mastery level (New/Learning/Mastered)
   @@map("flashcards")
 }
 
@@ -506,6 +538,7 @@ model Channel {
   members  ChannelMember[]
   messages ChannelMessage[]
 
+  @@index([classId]) // List all channels in a class
   @@map("channels")
 }
 
@@ -539,6 +572,7 @@ model Announcement {
   class  Class @relation(fields: [classId], references: [id], onDelete: Cascade)
   author User  @relation("AuthorAnnouncements", fields: [authorId], references: [id])
 
+  @@index([classId, createdAt]) // Fetch announcements for a class, newest first
   @@map("announcements")
 }
 
@@ -581,5 +615,6 @@ model MessageReceipt {
   user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([messageId, userId])
+  @@index([userId, readAt]) // Unread count query: receipts for user where readAt IS NULL
   @@map("message_receipts")
 }

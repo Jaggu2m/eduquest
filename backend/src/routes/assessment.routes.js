@@ -9,6 +9,7 @@ import { EmbeddingService } from '../services/embedding.service.js';
 import { AIService } from '../services/ai.service.js';
 import { requireAuth } from '../middleware/auth.middleware.js';
 import { validate } from '../middleware/validate.middleware.js';
+import { aiLimiter } from '../middleware/rate-limit.middleware.js';
 import {
   GenerateQuizSchema,
   CreateAssessmentSchema,
@@ -42,7 +43,12 @@ router.use(requireAuth);
 // ── Assessment Routes ─────────────────────────────────────────────────────────
 
 // POST /api/organizations/:orgId/classes/:classId/assessments/generate (AI Quiz)
-router.post('/generate', validate(GenerateQuizSchema), assessmentController.generateAssessment);
+router.post(
+  '/generate',
+  aiLimiter,
+  validate(GenerateQuizSchema),
+  assessmentController.generateAssessment,
+);
 
 // GET /api/organizations/:orgId/classes/:classId/assessments
 router.get('/', assessmentController.getAssessments);
@@ -75,10 +81,7 @@ router.put(
 );
 
 // DELETE /api/organizations/:orgId/classes/:classId/assessments/:assessmentId/questions/:questionId
-router.delete(
-  '/:assessmentId/questions/:questionId',
-  assessmentController.deleteQuestion,
-);
+router.delete('/:assessmentId/questions/:questionId', assessmentController.deleteQuestion);
 
 // DELETE /api/organizations/:orgId/classes/:classId/assessments/:assessmentId
 router.delete('/:assessmentId', assessmentController.deleteAssessment);

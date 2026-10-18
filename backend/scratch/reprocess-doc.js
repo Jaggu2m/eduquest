@@ -8,7 +8,7 @@ async function reprocess() {
   const filePath = './uploads/1791653465806-49401393-OS_BOOKMARKED_NOTE.pdf__14_.pdf';
 
   console.log(`Reprocessing document ${documentId}...`);
-  
+
   // OCR first 5 pages for validation
   const { rawText, pageCount } = await ocrPdfWithTesseract(filePath, { maxPages: 5 });
   console.log(`OCR complete! Extracted ${rawText.length} characters.`);

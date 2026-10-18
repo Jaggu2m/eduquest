@@ -16,9 +16,41 @@ const invitationController = new OrgInvitationController(
 
 const router = Router();
 
-// API Health Check
-router.get('/health', (req, res) => {
-  res.json({ status: 'ok', message: 'API is running' });
+import { prisma } from '../lib/prismaClient.js';
+import { createRedisClient } from '../lib/redis.js';
+
+// API Health & Diagnostics Check
+router.get('/health', async (_req, res) => {
+  let dbStatus = 'connected';
+  let redisStatus = 'connected';
+
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+  } catch (err) {
+    dbStatus = `disconnected (${err.message})`;
+  }
+
+  try {
+    const redis = createRedisClient();
+    await redis.ping();
+    await redis.quit();
+  } catch (err) {
+    redisStatus = `disconnected (${err.message})`;
+  }
+
+  const isHealthy = dbStatus === 'connected';
+  const statusCode = isHealthy ? 200 : 503;
+
+  res.status(statusCode).json({
+    status: isHealthy ? 'healthy' : 'degraded',
+    uptimeSeconds: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    services: {
+      database: dbStatus,
+      redis: redisStatus,
+    },
+  });
 });
 
 // Mount modular routes

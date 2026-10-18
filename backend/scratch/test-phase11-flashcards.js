@@ -70,23 +70,32 @@ async function run() {
   // 1. Register + login
   const email = `flash-test-${Date.now()}@example.com`;
   await api('POST', '/auth/register', {
-    email, password: 'Test@1234', firstName: 'Flash', lastName: 'Tester',
+    email,
+    password: 'Test@1234',
+    firstName: 'Flash',
+    lastName: 'Tester',
   });
   const loginRes = await api('POST', '/auth/login', { email, password: 'Test@1234' });
   token = loginRes.data.data?.token || loginRes.data.token;
-  if (!token) { err('Login failed', loginRes.data); process.exit(1); }
+  if (!token) {
+    err('Login failed', loginRes.data);
+    process.exit(1);
+  }
   log('Auth OK', { token: token.slice(0, 20) + '...' });
 
   // 2. Create org
   const orgRes = await api('POST', '/organizations', {
-    name: 'Flash Test Org', slug: `flash-org-${Date.now()}`, description: 'Phase 11 test',
+    name: 'Flash Test Org',
+    slug: `flash-org-${Date.now()}`,
+    description: 'Phase 11 test',
   });
   orgId = orgRes.data.data?.id;
   log('Org created', { orgId });
 
   // 3. Create class
   const classRes = await api('POST', `/organizations/${orgId}/classes`, {
-    name: 'Biology 101', code: 'BIO101',
+    name: 'Biology 101',
+    code: 'BIO101',
   });
   classId = classRes.data.data?.id;
   log('Class created', { classId });
@@ -134,7 +143,10 @@ Photosynthesis and respiration are complementary processes — one stores energy
   });
   const uploadData = await uploadRes.json();
   documentId = uploadData.data?.id;
-  if (!documentId) { err('Upload failed', uploadData); process.exit(1); }
+  if (!documentId) {
+    err('Upload failed', uploadData);
+    process.exit(1);
+  }
   log('Document uploaded', { documentId, status: uploadData.data?.status });
 
   // 5. Wait for document to become READY
@@ -143,22 +155,35 @@ Photosynthesis and respiration are complementary processes — one stores energy
   let attempts = 0;
   while (docStatus !== 'READY' && attempts < 20) {
     await sleep(3000);
-    const docRes = await api('GET', `/organizations/${orgId}/classes/${classId}/documents/${documentId}`);
+    const docRes = await api(
+      'GET',
+      `/organizations/${orgId}/classes/${classId}/documents/${documentId}`,
+    );
     docStatus = docRes.data.data?.status;
     process.stdout.write(`   Status: ${docStatus} (attempt ${++attempts})\n`);
   }
-  if (docStatus !== 'READY') { err('Document never reached READY status'); process.exit(1); }
+  if (docStatus !== 'READY') {
+    err('Document never reached READY status');
+    process.exit(1);
+  }
   log('Document READY ✓');
 
   // 6. Generate a flashcard deck
   console.log('\n🃏 Generating flashcard deck...');
-  const genRes = await api('POST', `/organizations/${orgId}/classes/${classId}/flashcard-decks/generate`, {
-    documentId,
-    topic: 'Photosynthesis',
-    numCards: 8,
-    difficulty: 'MEDIUM',
-  });
-  if (genRes.status !== 201) { err('Deck generation failed', genRes.data); process.exit(1); }
+  const genRes = await api(
+    'POST',
+    `/organizations/${orgId}/classes/${classId}/flashcard-decks/generate`,
+    {
+      documentId,
+      topic: 'Photosynthesis',
+      numCards: 8,
+      difficulty: 'MEDIUM',
+    },
+  );
+  if (genRes.status !== 201) {
+    err('Deck generation failed', genRes.data);
+    process.exit(1);
+  }
   deckId = genRes.data.data?.id;
   const cardCount = genRes.data.data?.flashcards?.length;
   log(`Deck generated: "${genRes.data.data?.title}"`, { deckId, cards: cardCount });
@@ -174,39 +199,68 @@ Photosynthesis and respiration are complementary processes — one stores energy
 
   // 7. List decks
   const listRes = await api('GET', `/organizations/${orgId}/classes/${classId}/flashcard-decks`);
-  log(`Listed decks (count: ${listRes.data.data?.length})`, listRes.data.data?.map(d => ({ id: d.id, title: d.title, total: d._count?.flashcards })));
+  log(
+    `Listed decks (count: ${listRes.data.data?.length})`,
+    listRes.data.data?.map((d) => ({ id: d.id, title: d.title, total: d._count?.flashcards })),
+  );
 
   // 8. Get single deck
-  const deckRes = await api('GET', `/organizations/${orgId}/classes/${classId}/flashcard-decks/${deckId}`);
-  log('Get deck OK', { id: deckRes.data.data?.id, cardCount: deckRes.data.data?.flashcards?.length });
+  const deckRes = await api(
+    'GET',
+    `/organizations/${orgId}/classes/${classId}/flashcard-decks/${deckId}`,
+  );
+  log('Get deck OK', {
+    id: deckRes.data.data?.id,
+    cardCount: deckRes.data.data?.flashcards?.length,
+  });
 
   // 9. Get due cards for practice
-  const dueRes = await api('GET', `/organizations/${orgId}/classes/${classId}/flashcard-decks/${deckId}/due?limit=5`);
+  const dueRes = await api(
+    'GET',
+    `/organizations/${orgId}/classes/${classId}/flashcard-decks/${deckId}/due?limit=5`,
+  );
   const dueCards = dueRes.data.data;
-  log(`Due cards (${dueCards?.length})`, dueCards?.map(c => ({ id: c.id, front: c.front.slice(0, 50), mastery: c.masteryLevel })));
+  log(
+    `Due cards (${dueCards?.length})`,
+    dueCards?.map((c) => ({ id: c.id, front: c.front.slice(0, 50), mastery: c.masteryLevel })),
+  );
   cardId = dueCards?.[0]?.id;
 
   // 10. Review a card
   if (cardId) {
-    const reviewRes = await api('POST', `/organizations/${orgId}/classes/${classId}/flashcard-decks/${deckId}/cards/${cardId}/review`, {
-      masteryLevel: 2,
-    });
+    const reviewRes = await api(
+      'POST',
+      `/organizations/${orgId}/classes/${classId}/flashcard-decks/${deckId}/cards/${cardId}/review`,
+      {
+        masteryLevel: 2,
+      },
+    );
     log('Card reviewed (masteryLevel=2 → Familiar)', reviewRes.data.data);
   }
 
   // 11. Get deck stats
-  const statsRes = await api('GET', `/organizations/${orgId}/classes/${classId}/flashcard-decks/${deckId}/stats`);
+  const statsRes = await api(
+    'GET',
+    `/organizations/${orgId}/classes/${classId}/flashcard-decks/${deckId}/stats`,
+  );
   log('Deck stats', statsRes.data.data);
 
   // 12. Update deck title
-  const updateRes = await api('PATCH', `/organizations/${orgId}/classes/${classId}/flashcard-decks/${deckId}`, {
-    title: 'Updated Photosynthesis Deck',
-    description: 'Updated via test',
-  });
+  const updateRes = await api(
+    'PATCH',
+    `/organizations/${orgId}/classes/${classId}/flashcard-decks/${deckId}`,
+    {
+      title: 'Updated Photosynthesis Deck',
+      description: 'Updated via test',
+    },
+  );
   log('Deck updated', updateRes.data);
 
   // 13. Delete deck
-  const deleteRes = await api('DELETE', `/organizations/${orgId}/classes/${classId}/flashcard-decks/${deckId}`);
+  const deleteRes = await api(
+    'DELETE',
+    `/organizations/${orgId}/classes/${classId}/flashcard-decks/${deckId}`,
+  );
   log(`Deck deleted (status ${deleteRes.status})`);
 
   console.log('\n🎉 Phase 11 — Flashcard System: ALL TESTS PASSED!\n');

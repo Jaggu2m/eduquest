@@ -38,3 +38,17 @@ export const authLimiter = createRateLimiter({
   max: isProd ? 10 : 1000, // Relaxed limit in development
   message: 'Too many authentication attempts, please try again later.',
 });
+
+// Rate limiter for expensive AI endpoints (Quiz generation, AI Tutor, Flashcard generation)
+export const aiLimiter = createRateLimiter({
+  windowMs: 60 * 1000, // 1 minute window
+  max: isProd ? 15 : 200, // 15 requests/min in prod, 200 in dev
+  message: 'AI request limit reached. Please wait a moment before sending more AI requests.',
+});
+
+// Rate limiter for document uploads to prevent storage abuse
+export const uploadLimiter = createRateLimiter({
+  windowMs: 60 * 60 * 1000, // 1 hour window
+  max: isProd ? 30 : 500, // 30 uploads/hour in prod
+  message: 'Upload limit exceeded. You have reached the maximum allowed uploads for this hour.',
+});

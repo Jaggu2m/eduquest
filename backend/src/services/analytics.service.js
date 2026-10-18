@@ -330,7 +330,8 @@ export class AnalyticsService {
       recommendations.push({
         topic: 'Consistent Progress',
         insight: `Great work! Your current average is ${averageScorePercent}%, showing strong command across topics.`,
-        recommendedAction: 'Continue your regular practice sessions to maintain this high standard.',
+        recommendedAction:
+          'Continue your regular practice sessions to maintain this high standard.',
         severity: 'LOW',
       });
     }
@@ -363,16 +364,20 @@ export class AnalyticsService {
 
     // 1. Fetch aggregated data
     const overview = await this.getClassOverview({ organizationId, classId });
-    const topicMastery = await this.getClassTopicMastery({ organizationId, classId, weakThreshold: 60 });
+    const topicMastery = await this.getClassTopicMastery({
+      organizationId,
+      classId,
+      weakThreshold: 60,
+    });
     const questionDifficulty = await this.getClassQuestionDifficulty({ organizationId, classId });
 
     const analyticsPayload = {
       overview,
       topicMastery: {
         weakTopics: topicMastery.weakTopics,
-        allTopics: topicMastery.allTopics
+        allTopics: topicMastery.allTopics,
       },
-      hardQuestions: questionDifficulty.filter(q => q.difficultyCategory === 'HARD')
+      hardQuestions: questionDifficulty.filter((q) => q.difficultyCategory === 'HARD'),
     };
 
     // 2. Generate insights via AI
@@ -381,4 +386,3 @@ export class AnalyticsService {
     return { insights, generatedAt: new Date().toISOString() };
   }
 }
-

@@ -5,27 +5,56 @@ import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { prisma } from './lib/prismaClient.js';
-dotenv.config();
-const app = express();
-const httpServer = createServer(app); // Wrap Express with Node's http.Server
-const port = process.env.PORT || 3000;
-
-// Security middleware
-app.use(helmet());
-app.use(cors());
-app.use(express.json());
-
-import apiRoutes from './routes/index.js';
+import { logger, httpLogger } from './lib/logger.js';
+import {
+  csrfProtection,
+  sanitizeInput,
+  preventParameterPollution,
+} from './middleware/security.middleware.js';
 import { apiLimiter } from './middleware/rate-limit.middleware.js';
-
-// Apply global rate limiting to all /api routes (more specific ones can be applied in routers)
-app.use('/api', apiLimiter);
-
+import apiRoutes from './routes/index.js';
 import { startDocumentWorker } from './workers/document.worker.js';
 import { documentQueue } from './queues/document.queue.js';
 import { startNotificationWorker } from './workers/notification.worker.js';
 import { notificationQueue } from './queues/notification.queue.js';
 import { initSocketGateway } from './lib/socket.gateway.js';
+
+dotenv.config();
+
+const app = express();
+const httpServer = createServer(app);
+const port = process.env.PORT || 3000;
+
+// Security & Header middleware
+app.use(
+  helmet({
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+        imgSrc: ["'self'", 'data:', 'https:'],
+        scriptSrc: ["'self'"],
+        connectSrc: ["'self'"],
+      },
+    },
+  }),
+);
+
+app.use(cors());
+
+// Structured HTTP request logging with Pino
+app.use(httpLogger);
+
+// Input sanitization & security parsers
+app.use(express.json());
+app.use(sanitizeInput);
+app.use(preventParameterPollution);
+app.use(csrfProtection);
+
+// Apply rate limiting to all /api routes
+app.use('/api', apiLimiter);
 
 // ── Socket.IO setup ──────────────────────────────────────────────────────────
 const io = new SocketIOServer(httpServer, {
@@ -43,57 +72,70 @@ let notificationWorker = null;
 
 // ── API Routes ──────────────────────────────────────────────────────────────
 app.use('/api', apiRoutes);
+
 // ── Global Error Handler ─────────────────────────────────────────────────────
-// Must be defined AFTER routes and have 4 params for Express to recognise it.
-app.use((err, _req, res, _next) => {
-  console.error('[error]:', err.message);
+app.use((err, req, res, _next) => {
   const status = err.statusCode || (typeof err.status === 'number' ? err.status : 500);
+  logger.error(
+    {
+      err: {
+        message: err.message,
+        stack: err.stack,
+        statusCode: status,
+      },
+      path: req.path,
+      method: req.method,
+    },
+    `Request error: ${err.message}`,
+  );
   res.status(status).json({ message: err.message ?? 'Internal Server Error' });
 });
+
 // ── Bootstrap ────────────────────────────────────────────────────────────────
 async function bootstrap() {
   try {
     await prisma.$connect();
-    console.log('[db]: PostgreSQL connected successfully');
+    logger.info('[db]: PostgreSQL connected successfully');
 
     // Initialize Socket.IO Gateway
     initSocketGateway(io);
-    console.log('[socket]: Socket.IO Gateway initialized');
+    logger.info('[socket]: Socket.IO Gateway initialized');
 
     // Initialize BullMQ Document Worker
     documentWorker = startDocumentWorker();
-    console.log('[worker]: BullMQ Document Worker initialized');
+    logger.info('[worker]: BullMQ Document Worker initialized');
 
     // Initialize BullMQ Notification Worker
     notificationWorker = startNotificationWorker();
-    console.log('[worker]: BullMQ Notification Worker initialized');
+    logger.info('[worker]: BullMQ Notification Worker initialized');
 
     httpServer.listen(port, () => {
-      console.log(`[server]: Server is running at http://localhost:${port}`);
+      logger.info(`[server]: Server is running at http://localhost:${port}`);
     });
   } catch (error) {
-    console.error('[db]: Failed to connect to PostgreSQL:', error);
+    logger.error({ error }, '[db]: Failed to connect to PostgreSQL');
     process.exit(1);
   }
 }
-// ── Graceful shutdown ────────────────────────────────────────────────────────
-process.on('SIGINT', async () => {
-  console.log('\n[server]: Shutting down gracefully...');
-  if (documentWorker) await documentWorker.close();
-  if (notificationWorker) await notificationWorker.close();
-  await documentQueue.close();
-  await notificationQueue.close();
-  await prisma.$disconnect();
-  process.exit(0);
-});
-process.on('SIGTERM', async () => {
-  if (documentWorker) await documentWorker.close();
-  if (notificationWorker) await notificationWorker.close();
-  await documentQueue.close();
-  await notificationQueue.close();
-  await prisma.$disconnect();
-  process.exit(0);
-});
-bootstrap();
 
-//# sourceMappingURL=server.js.map
+// ── Graceful shutdown ────────────────────────────────────────────────────────
+async function handleShutdown(signal) {
+  logger.info(`[server]: Received ${signal}, shutting down gracefully...`);
+  try {
+    if (documentWorker) await documentWorker.close();
+    if (notificationWorker) await notificationWorker.close();
+    await documentQueue.close();
+    await notificationQueue.close();
+    await prisma.$disconnect();
+    logger.info('[server]: Cleanup complete, exiting process');
+    process.exit(0);
+  } catch (err) {
+    logger.error({ err }, '[server]: Error during shutdown');
+    process.exit(1);
+  }
+}
+
+process.on('SIGINT', () => handleShutdown('SIGINT'));
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+
+bootstrap();

@@ -223,7 +223,8 @@ export const ResourcesPage: React.FC = () => {
                   <div key={i} className="h-20 bg-stone-100/60 rounded-xl animate-pulse" />
                 ))}
               </div>
-            ) : documents.filter((d) => d.status === 'READY' || d.status === 'COMPLETED').length === 0 ? (
+            ) : documents.filter((d) => d.status === 'READY' || d.status === 'COMPLETED').length ===
+              0 ? (
               <div className="text-center py-10 text-stone-400">
                 <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-30" />
                 <p className="text-sm">No resources available yet. Check back soon!</p>

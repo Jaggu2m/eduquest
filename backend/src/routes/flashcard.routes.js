@@ -8,6 +8,7 @@ import { EmbeddingService } from '../services/embedding.service.js';
 import { AIService } from '../services/ai.service.js';
 import { requireAuth } from '../middleware/auth.middleware.js';
 import { validate } from '../middleware/validate.middleware.js';
+import { aiLimiter } from '../middleware/rate-limit.middleware.js';
 import {
   GenerateFlashcardDeckSchema,
   UpdateFlashcardDeckSchema,
@@ -39,7 +40,12 @@ router.use(requireAuth);
 // ── Deck Routes ───────────────────────────────────────────────────────────────
 
 // POST   /api/organizations/:orgId/classes/:classId/flashcard-decks/generate
-router.post('/generate', validate(GenerateFlashcardDeckSchema), flashcardController.generateDeck);
+router.post(
+  '/generate',
+  aiLimiter,
+  validate(GenerateFlashcardDeckSchema),
+  flashcardController.generateDeck,
+);
 
 // GET    /api/organizations/:orgId/classes/:classId/flashcard-decks
 router.get('/', flashcardController.listDecks);

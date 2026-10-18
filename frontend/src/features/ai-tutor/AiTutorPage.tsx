@@ -25,34 +25,64 @@ const MarkdownContent: React.FC<{ content: string }> = ({ content }) => (
   <ReactMarkdown
     remarkPlugins={[remarkGfm]}
     components={{
-      h1: ({ children }) => <h1 className="text-lg font-bold text-stone-900 mt-3 mb-1.5">{children}</h1>,
-      h2: ({ children }) => <h2 className="text-base font-bold text-stone-900 mt-3 mb-1">{children}</h2>,
-      h3: ({ children }) => <h3 className="text-sm font-bold text-stone-800 mt-2 mb-1">{children}</h3>,
+      h1: ({ children }) => (
+        <h1 className="text-lg font-bold text-stone-900 mt-3 mb-1.5">{children}</h1>
+      ),
+      h2: ({ children }) => (
+        <h2 className="text-base font-bold text-stone-900 mt-3 mb-1">{children}</h2>
+      ),
+      h3: ({ children }) => (
+        <h3 className="text-sm font-bold text-stone-800 mt-2 mb-1">{children}</h3>
+      ),
       p: ({ children }) => <p className="text-stone-800 mb-2 leading-relaxed">{children}</p>,
-      ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-2 text-stone-800">{children}</ul>,
-      ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-2 text-stone-800">{children}</ol>,
+      ul: ({ children }) => (
+        <ul className="list-disc list-inside space-y-1 mb-2 text-stone-800">{children}</ul>
+      ),
+      ol: ({ children }) => (
+        <ol className="list-decimal list-inside space-y-1 mb-2 text-stone-800">{children}</ol>
+      ),
       li: ({ children }) => <li className="leading-relaxed">{children}</li>,
       strong: ({ children }) => <strong className="font-bold text-stone-900">{children}</strong>,
       em: ({ children }) => <em className="italic text-stone-700">{children}</em>,
       code: ({ className, children, ...props }) => {
         const isInline = !className;
         return isInline ? (
-          <code className="bg-stone-100 text-[#EA580C] rounded px-1 py-0.5 text-xs font-mono" {...props}>{children}</code>
+          <code
+            className="bg-stone-100 text-[#EA580C] rounded px-1 py-0.5 text-xs font-mono"
+            {...props}
+          >
+            {children}
+          </code>
         ) : (
-          <code className="block bg-stone-100 rounded-lg p-3 text-xs font-mono text-stone-800 overflow-x-auto my-2" {...props}>{children}</code>
+          <code
+            className="block bg-stone-100 rounded-lg p-3 text-xs font-mono text-stone-800 overflow-x-auto my-2"
+            {...props}
+          >
+            {children}
+          </code>
         );
       },
       pre: ({ children }) => <pre className="my-2">{children}</pre>,
       blockquote: ({ children }) => (
-        <blockquote className="border-l-4 border-[#EA580C]/40 pl-3 my-2 text-stone-600 italic">{children}</blockquote>
+        <blockquote className="border-l-4 border-[#EA580C]/40 pl-3 my-2 text-stone-600 italic">
+          {children}
+        </blockquote>
       ),
       table: ({ children }) => (
         <div className="overflow-x-auto my-3">
-          <table className="min-w-full text-xs border-collapse border border-stone-200 rounded-lg overflow-hidden">{children}</table>
+          <table className="min-w-full text-xs border-collapse border border-stone-200 rounded-lg overflow-hidden">
+            {children}
+          </table>
         </div>
       ),
-      th: ({ children }) => <th className="bg-stone-100 font-bold text-stone-700 px-3 py-2 text-left border border-stone-200">{children}</th>,
-      td: ({ children }) => <td className="px-3 py-2 border border-stone-200 text-stone-800">{children}</td>,
+      th: ({ children }) => (
+        <th className="bg-stone-100 font-bold text-stone-700 px-3 py-2 text-left border border-stone-200">
+          {children}
+        </th>
+      ),
+      td: ({ children }) => (
+        <td className="px-3 py-2 border border-stone-200 text-stone-800">{children}</td>
+      ),
       hr: () => <hr className="border-stone-200 my-3" />,
     }}
   >
@@ -306,15 +336,15 @@ export const AiTutorPage: React.FC = () => {
                   : 'All class documents'}
               </p>
             </div>
-              <button
-                type="button"
-                onClick={() => setIsFullscreen((current) => !current)}
-                aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-                title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Enter fullscreen'}
-                className="ml-auto rounded-lg p-2 text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#EA580C]/40"
-              >
-                {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-              </button>
+            <button
+              type="button"
+              onClick={() => setIsFullscreen((current) => !current)}
+              aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+              title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Enter fullscreen'}
+              className="ml-auto rounded-lg p-2 text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#EA580C]/40"
+            >
+              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
           </div>
 
           {/* Messages */}

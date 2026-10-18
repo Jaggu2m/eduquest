@@ -62,7 +62,12 @@ export class ClassService {
 
     const generatedCode =
       classData.code?.trim().toUpperCase() ||
-      `${(classData.name || 'CLS').replace(/[^a-zA-Z0-9]/g, '').slice(0, 3).toUpperCase() || 'CLS'}-${Math.floor(100 + Math.random() * 900)}`;
+      `${
+        (classData.name || 'CLS')
+          .replace(/[^a-zA-Z0-9]/g, '')
+          .slice(0, 3)
+          .toUpperCase() || 'CLS'
+      }-${Math.floor(100 + Math.random() * 900)}`;
 
     const newClass = await this.classRepository.create({
       organizationId,
@@ -176,7 +181,7 @@ export class ClassService {
       organizationId,
     );
     if (!studentMembership) {
-      studentMembership = await this.membershipRepository.create({
+      await this.membershipRepository.create({
         userId: studentUserId,
         organizationId,
         role: 'STUDENT',
@@ -211,11 +216,13 @@ export class ClassService {
         select: { id: true },
       });
       for (const ch of channels) {
-        await prisma.channelMember.upsert({
-          where: { channelId_userId: { channelId: ch.id, userId: studentUserId } },
-          create: { channelId: ch.id, userId: studentUserId },
-          update: {},
-        }).catch(() => {});
+        await prisma.channelMember
+          .upsert({
+            where: { channelId_userId: { channelId: ch.id, userId: studentUserId } },
+            create: { channelId: ch.id, userId: studentUserId },
+            update: {},
+          })
+          .catch(() => {});
       }
     } catch (err) {
       console.error('[ClassService] Failed to auto-join student to channels:', err.message);

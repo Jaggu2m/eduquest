@@ -138,7 +138,10 @@ Generate the JSON quiz now.`;
     return questions.map((q, idx) => {
       let rawOptions = Array.isArray(q.options) ? q.options : [];
       // Programmatically shuffle options for MULTIPLE_CHOICE to guarantee random answer position
-      if (q.questionType === 'MULTIPLE_CHOICE' || (q.questionType !== 'TRUE_FALSE' && rawOptions.length > 2)) {
+      if (
+        q.questionType === 'MULTIPLE_CHOICE' ||
+        (q.questionType !== 'TRUE_FALSE' && rawOptions.length > 2)
+      ) {
         rawOptions = shuffleArray(rawOptions);
       }
 
@@ -203,11 +206,9 @@ Generate the JSON quiz now.`;
 
     // Collect unique document titles from ALL retrieved chunks (even garbled ones)
     // so the AI knows which documents were searched
-    const allDocTitles = [...new Set(
-      contextChunks
-        .filter((c) => c.documentTitle)
-        .map((c) => c.documentTitle),
-    )];
+    const allDocTitles = [
+      ...new Set(contextChunks.filter((c) => c.documentTitle).map((c) => c.documentTitle)),
+    ];
 
     // Build context string from readable chunks only
     let formattedContext;
@@ -220,15 +221,15 @@ Generate the JSON quiz now.`;
             ? `Document: "${chunk.documentTitle}"`
             : 'Source Document';
           const pageInfo = chunk.pageNumber ? `, Page ${chunk.pageNumber}` : '';
-          const chunkInfo =
-            chunk.chunkIndex !== undefined ? `, Chunk #${chunk.chunkIndex}` : '';
+          const chunkInfo = chunk.chunkIndex !== undefined ? `, Chunk #${chunk.chunkIndex}` : '';
           return `[Source ${idx + 1} | ${docInfo}${pageInfo}${chunkInfo}]\n${chunk.content}`;
         })
         .join('\n\n---\n\n');
     } else if (allDocTitles.length > 0) {
       // Chunks exist but are all garbled OCR — tell the AI which docs were found
       formattedContext = `[Note: Relevant sections were found in the following document(s): ${allDocTitles.map((t) => `"${t}"`).join(', ')}, but the text could not be read clearly (likely scanned/handwritten notes). Please answer from your academic knowledge about the course topic.]`;
-      sourceQualityNote = 'The uploaded documents appear to be scanned or handwritten and could not be parsed clearly. ';
+      sourceQualityNote =
+        'The uploaded documents appear to be scanned or handwritten and could not be parsed clearly. ';
     } else {
       formattedContext = 'No course documents have been uploaded for this class yet.';
     }
@@ -412,7 +413,7 @@ Generate ${numCards} flashcards from this material.`;
 
     const cards = Array.isArray(parsed)
       ? parsed
-      : parsed.cards ?? parsed.flashcards ?? parsed.data ?? [];
+      : (parsed.cards ?? parsed.flashcards ?? parsed.data ?? []);
 
     if (!Array.isArray(cards) || cards.length === 0) {
       throw new Error('LLM returned no flashcards in expected format.');
@@ -475,4 +476,3 @@ Please generate a teaching insights report based on this data.`;
     return completion.choices[0].message.content;
   }
 }
-

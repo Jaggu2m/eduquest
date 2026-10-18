@@ -440,9 +440,7 @@ export const AnalyticsPage: React.FC = () => {
             <div className="py-12 text-center text-stone-400">
               <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-30" />
               <p className="text-sm">No attempts recorded yet.</p>
-              <p className="text-xs mt-1 opacity-70">
-                Go to the Assessments page to start a quiz!
-              </p>
+              <p className="text-xs mt-1 opacity-70">Go to the Assessments page to start a quiz!</p>
             </div>
           ) : (
             <div className="overflow-x-auto">

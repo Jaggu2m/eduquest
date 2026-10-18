@@ -107,35 +107,55 @@ async function setup() {
   log('Student registered', { email: `student-${uid}@test.com`, studentId });
 
   // 3. Create organization
-  r = await api('POST', '/organizations', {
-    name: `Test Org ${uid}`,
-    slug: `test-org-${uid}`,
-  }, teacherToken);
+  r = await api(
+    'POST',
+    '/organizations',
+    {
+      name: `Test Org ${uid}`,
+      slug: `test-org-${uid}`,
+    },
+    teacherToken,
+  );
   assertOk(r, 'Create organization');
   orgId = r.data.data?.id || r.data.id;
   log('Organization created', { orgId });
 
   // 4. Create class
-  r = await api('POST', `/organizations/${orgId}/classes`, {
-    name: `Physics 101 ${uid}`,
-    code: 'PHY-101',
-  }, teacherToken);
+  r = await api(
+    'POST',
+    `/organizations/${orgId}/classes`,
+    {
+      name: `Physics 101 ${uid}`,
+      code: 'PHY-101',
+    },
+    teacherToken,
+  );
   assertOk(r, 'Create class');
   classId = r.data.class?.id || r.data.data?.id || r.data.id;
   log('Class created', { classId });
 
   // 5. Add student as org member
-  r = await api('POST', `/organizations/${orgId}/members`, {
-    userId: studentId,
-    role: 'STUDENT',
-  }, teacherToken);
+  r = await api(
+    'POST',
+    `/organizations/${orgId}/members`,
+    {
+      userId: studentId,
+      role: 'STUDENT',
+    },
+    teacherToken,
+  );
   assertOk(r, 'Add student to org');
   log('Student added to organization');
 
   // 6. Enroll student in class
-  r = await api('POST', `/organizations/${orgId}/classes/${classId}/enrollments`, {
-    userId: studentId,
-  }, teacherToken);
+  r = await api(
+    'POST',
+    `/organizations/${orgId}/classes/${classId}/enrollments`,
+    {
+      userId: studentId,
+    },
+    teacherToken,
+  );
   assertOk(r, 'Enroll student');
   log('Student enrolled in class');
 
@@ -160,11 +180,20 @@ async function testCreateChannel() {
 
 async function testListChannels() {
   console.log('\n── Test 2: Teacher lists channels ──');
-  const r = await api('GET', `/organizations/${orgId}/classes/${classId}/channels`, null, teacherToken);
+  const r = await api(
+    'GET',
+    `/organizations/${orgId}/classes/${classId}/channels`,
+    null,
+    teacherToken,
+  );
   assertOk(r, 'List channels');
   const channels = r.data.data;
-  if (!Array.isArray(channels) || channels.length === 0) fail('Expected at least 1 channel', r.data);
-  log(`Found ${channels.length} channel(s)`, channels.map(c => ({ id: c.id, name: c.name })));
+  if (!Array.isArray(channels) || channels.length === 0)
+    fail('Expected at least 1 channel', r.data);
+  log(
+    `Found ${channels.length} channel(s)`,
+    channels.map((c) => ({ id: c.id, name: c.name })),
+  );
 }
 
 async function testAddStudentToChannel(studentId) {
@@ -203,13 +232,17 @@ async function testGetMessageHistory() {
   );
   assertOk(r, 'Get message history');
   const messages = r.data.data;
-  if (!Array.isArray(messages) || messages.length === 0) fail('Expected messages in history', r.data);
-  log(`Got ${messages.length} message(s)`, messages.map(m => ({
-    id: m.id,
-    content: m.content,
-    sender: m.sender?.firstName,
-    replies: m.replies?.length ?? 0,
-  })));
+  if (!Array.isArray(messages) || messages.length === 0)
+    fail('Expected messages in history', r.data);
+  log(
+    `Got ${messages.length} message(s)`,
+    messages.map((m) => ({
+      id: m.id,
+      content: m.content,
+      sender: m.sender?.firstName,
+      replies: m.replies?.length ?? 0,
+    })),
+  );
   console.log('  nextCursor:', r.data.nextCursor);
 }
 
@@ -218,7 +251,7 @@ async function testThreadedReply() {
   const r = await api(
     'POST',
     `/organizations/${orgId}/classes/${classId}/channels/${channelId}/messages`,
-    { content: 'Thank you! I have a question about Newton\'s laws.', parentId: messageId },
+    { content: "Thank you! I have a question about Newton's laws.", parentId: messageId },
     studentToken,
   );
   assertOk(r, 'Post threaded reply');
@@ -330,4 +363,3 @@ async function run() {
 }
 
 run();
-

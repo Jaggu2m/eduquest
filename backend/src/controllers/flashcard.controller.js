@@ -109,7 +109,11 @@ export class FlashcardController {
       const { cardId } = req.params;
       const userId = req.user.userId || req.user.id;
       const { masteryLevel } = req.body;
-      const updated = await this.flashcardService.reviewCard({ flashcardId: cardId, userId, masteryLevel });
+      const updated = await this.flashcardService.reviewCard({
+        flashcardId: cardId,
+        userId,
+        masteryLevel,
+      });
       return res.json({ success: true, data: updated });
     } catch (err) {
       next(err);
