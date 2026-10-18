@@ -1,5 +1,5 @@
 # ========================================================
-# Render Blueprint Specification for EdQuest AI
+# Render Blueprint Specification for EdQuest AI (Docker)
 # https://render.com/docs/blueprint-spec
 # ========================================================
 version: "1"
@@ -12,14 +12,13 @@ databases:
     ipAllowList: [] # Only internal services can connect
 
 services:
-  # ── Backend Web Service (Node.js API + Socket.IO + BullMQ) ─────────────────
+  # ── Backend Web Service (Docker: Node.js 20, Express, Prisma, pgvector) ──────
   - type: web
     name: eduquest-backend
-    runtime: node
+    runtime: docker
     plan: starter
-    rootDir: backend
-    buildCommand: "npm install && npx prisma generate"
-    startCommand: "npm start"
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
     healthCheckPath: "/api/health"
     autoDeploy: true
     envVars:
@@ -39,7 +38,7 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: ALLOWED_ORIGINS
-        sync: false # Set to frontend URL after frontend creation
+        sync: false # Set to frontend URL after launch
       - key: GROQ_API_KEY
         sync: false # Set in Render dashboard
       - key: GEMINI_API_KEY
@@ -52,18 +51,14 @@ services:
     ipAllowList: [] # Only internal services can connect
     maxmemoryPolicy: noeviction
 
-  # ── Frontend Static Site (React + Vite SPA) ─────────────────────────────────
+  # ── Frontend Web Service (Docker: Multi-stage Vite build + Nginx Alpine) ────
   - type: web
     name: eduquest-frontend
-    runtime: static
-    rootDir: frontend
-    buildCommand: "npm install && npm run build"
-    staticPublishPath: "./dist"
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
     autoDeploy: true
-    routes:
-      - type: rewrite
-        source: "/*"
-        destination: "/index.html"
     envVars:
       - key: VITE_API_URL
         fromService:

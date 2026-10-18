@@ -26,24 +26,22 @@ EdQuest AI includes a `render.yaml` blueprint that provisions all services and d
 
 ### Step 2: Review Service Declarations
 Render will read `render.yaml` and display the blueprint plan:
-* **`eduquest-postgres`**: Managed PostgreSQL Database.
-* **`eduquest-redis`**: Managed Redis Instance.
-* **`eduquest-backend`**: Node.js Web Service running `npm start`.
-* **`eduquest-frontend`**: Static Site serving Vite production bundle.
+* **`eduquest-postgres`**: Managed PostgreSQL Database (native `pgvector` support).
+* **`eduquest-redis`**: Managed Redis Instance (caching, Socket.IO, BullMQ).
+* **`eduquest-backend`**: Docker Web Service running `backend/Dockerfile` (auto-initializes `pgvector` & Prisma schema).
+* **`eduquest-frontend`**: Docker Web Service running `frontend/Dockerfile` (Vite build + Nginx Alpine).
 
 ### Step 3: Populate Environment Variables
 In the Render dashboard prompt, supply the following keys:
 * `GROQ_API_KEY`: Your production Groq API key.
 * `GEMINI_API_KEY`: Your production Google Gemini API key.
-* `ALLOWED_ORIGINS`: Set to your frontend static site URL (e.g. `https://eduquest-frontend.onrender.com`).
+* `ALLOWED_ORIGINS`: Set to your frontend URL once generated (e.g. `https://eduquest-frontend.onrender.com`).
 
-### Step 4: Run Initial Database Migration
-Once the backend and database services are created, open the **Shell** tab on `eduquest-backend` and execute:
-```bash
-npx prisma db push
-# Or seed sample data if needed:
-# npm run prisma:seed
-```
+### Step 4: Automatic Schema & Extension Initialization
+You do **not** need to run any manual migration commands! When the backend Docker container starts, it automatically:
+1. Executes `node prisma/init-db.js` which verifies and enables the `pgvector` extension.
+2. Executes `npx prisma db push` which synchronizes all tables, relations, and indexes.
+3. Launches the production Express API server.
 
 ### Step 5: Verify Deployment
 Navigate to `https://eduquest-backend.onrender.com/api/health`. You should receive:
