@@ -18,6 +18,7 @@ COPY prisma ./prisma/
 COPY prisma7.config.ts ./
 
 # Install production dependencies and generate Prisma client
+ENV DATABASE_URL="postgresql://postgres:postgres@localhost:5432/eduquest"
 RUN npm ci --omit=dev && npx prisma generate
 
 # Copy application source code
