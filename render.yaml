@@ -38,7 +38,7 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: ALLOWED_ORIGINS
-        sync: false # Set to frontend URL after launch
+        sync: false # Set to frontend URL after launch (or * for all origins)
       - key: GROQ_API_KEY
         sync: false # Set in Render dashboard
       - key: GEMINI_API_KEY
@@ -61,7 +61,4 @@ services:
     autoDeploy: true
     envVars:
       - key: VITE_API_URL
-        fromService:
-          type: web
-          name: eduquest-backend
-          property: url
+        sync: false # Set in Render dashboard to backend URL (e.g. https://eduquest-backend.onrender.com/api)

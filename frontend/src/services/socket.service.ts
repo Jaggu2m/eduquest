@@ -5,8 +5,11 @@ class SocketService {
 
   connect(): Socket {
     if (!this.socket) {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const socketUrl =
+        import.meta.env.VITE_SOCKET_URL || (apiUrl ? apiUrl.replace(/\/api\/?$/, '') : '/');
       const token = localStorage.getItem('token');
-      this.socket = io('/', {
+      this.socket = io(socketUrl, {
         auth: { token },
         transports: ['websocket', 'polling'],
       });
