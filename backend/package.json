@@ -8,7 +8,7 @@
     "test:watch": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --watch",
     "test:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage",
     "dev": "nodemon src/server.js",
-    "start": "npx prisma db push && node src/server.js",
+    "start": "node prisma/init-db.js && npx prisma db push && node src/server.js",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
