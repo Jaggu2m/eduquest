@@ -33,9 +33,24 @@ export const csrfProtection = (req, res, next) => {
     return next();
   }
 
-  // Auth endpoints (login, register) produce tokens rather than consuming
-  // ambient credentials, so they are inherently immune to CSRF attacks.
-  if (req.path.startsWith('/auth/')) {
+  // Auth endpoints (login, register) and public invitation acceptance produce tokens
+  // or accept invite tokens rather than consuming ambient credentials, so they are
+  // inherently immune to CSRF attacks.
+  const path = req.path || '';
+  const origUrl = req.originalUrl || '';
+  if (
+    path.startsWith('/auth/') ||
+    path.startsWith('/api/auth/') ||
+    origUrl.includes('/auth/') ||
+    origUrl.includes('/invitations/accept')
+  ) {
+    return next();
+  }
+
+  // Any request with an Authorization header (Bearer token) was dispatched via explicit
+  // JavaScript code (browsers never attach Bearer tokens automatically), making it
+  // inherently immune to browser ambient-credential CSRF attacks.
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
     return next();
   }
 
@@ -57,13 +72,7 @@ export const csrfProtection = (req, res, next) => {
 
   // If no Origin or Referer header is present:
   // - Non-browser clients (e.g. mobile apps, automated scripts) might omit Origin.
-  // - If an Authorization header is present with a Bearer token, it was dispatched
-  //   via custom script/code (browsers do not attach Bearer tokens automatically),
-  //   which is inherently immune to browser ambient-credential CSRF attacks.
   if (!requestOrigin) {
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
-      return next();
-    }
     // Allow non-browser clients in non-production, but enforce header presence in production
     if (process.env.NODE_ENV === 'production') {
       return res.status(403).json({

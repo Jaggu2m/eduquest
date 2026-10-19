@@ -75,7 +75,7 @@ app.use(sanitizeInput);
 app.use(preventParameterPollution);
 app.use(csrfProtection);
 
-// Apply rate limiting to all /api routes
+// Apply rate limiting
 app.use('/api', apiLimiter);
 
 // ── Socket.IO setup ──────────────────────────────────────────────────────────
@@ -93,7 +93,10 @@ let documentWorker = null;
 let notificationWorker = null;
 
 // ── API Routes ──────────────────────────────────────────────────────────────
+// Mount at both '/api' and root '/' so that requests from frontends with or
+// without the '/api' prefix (e.g. /auth/login vs /api/auth/login) are handled smoothly.
 app.use('/api', apiRoutes);
+app.use(apiRoutes);
 
 // ── Global Error Handler ─────────────────────────────────────────────────────
 app.use((err, req, res, _next) => {

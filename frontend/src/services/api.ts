@@ -1,7 +1,16 @@
 import axios, { AxiosError } from 'axios';
 
+// Normalize base URL: ensures /api is always present whether VITE_API_URL
+// was provided with or without /api, or with a trailing slash.
+const getBaseURL = (): string => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (!envUrl) return '/api';
+  const clean = envUrl.replace(/\/+$/, '');
+  return clean.endsWith('/api') ? clean : `${clean}/api`;
+};
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: getBaseURL(),
   headers: {
     'Content-Type': 'application/json',
   },
