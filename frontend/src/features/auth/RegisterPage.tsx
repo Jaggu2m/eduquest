@@ -27,7 +27,13 @@ export const RegisterPage: React.FC = () => {
     setLoading(true);
     try {
       await register(form);
-      navigate('/organizations');
+      // Teachers need to create/select an org first.
+      // Students have no orgs yet — send them to the dashboard where they can join a class.
+      if (form.role === 'TEACHER') {
+        navigate('/organizations');
+      } else {
+        navigate('/app/dashboard');
+      }
     } catch (err: any) {
       const data = err.response?.data;
       const details = data?.errors?.map((e: any) => e.message).join(' ');

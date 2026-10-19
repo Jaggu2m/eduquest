@@ -18,8 +18,14 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      await login({ email, password });
-      navigate('/app/dashboard');
+      const orgs = await login({ email, password });
+      // If there are multiple orgs, let the user pick one;
+      // otherwise go straight to the dashboard (AuthContext auto-selects the first org).
+      if (Array.isArray(orgs) && orgs.length > 1) {
+        navigate('/organizations');
+      } else {
+        navigate('/app/dashboard');
+      }
     } catch (err: any) {
       const data = err.response?.data;
       const details = data?.errors?.map((e: any) => e.message).join(' ');

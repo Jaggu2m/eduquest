@@ -36,9 +36,13 @@ export const OrganizationSelectorPage: React.FC = () => {
     setCreateError('');
     setCreating(true);
     try {
-      await orgService.createOrganization(createForm);
-      await loadOrganizations();
+      const newOrg = await orgService.createOrganization(createForm);
+      const orgs = await loadOrganizations();
+      // Auto-select the newly created org and go straight to the dashboard
+      const created = orgs.find((o) => o.id === newOrg?.id) || orgs[orgs.length - 1];
+      if (created) setSelectedOrg(created);
       setCreateOpen(false);
+      navigate('/app/dashboard');
     } catch (err: any) {
       setCreateError(err.response?.data?.message || 'Failed to create organization.');
     } finally {
@@ -71,6 +75,41 @@ export const OrganizationSelectorPage: React.FC = () => {
         {loading ? (
           <div className="flex justify-center py-16">
             <Loader2 className="w-8 h-8 text-[#EA580C] animate-spin" />
+          </div>
+        ) : organizations.length === 0 ? (
+          // Empty state — shown for brand-new users with no memberships yet
+          <div className="flex flex-col items-center text-center py-16 gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-[#EA580C]/10 flex items-center justify-center">
+              <Building2 className="w-8 h-8 text-[#EA580C]" />
+            </div>
+            {isAdmin || isTeacher ? (
+              <>
+                <h3 className="text-lg font-bold text-stone-900">No workspaces yet</h3>
+                <p className="text-sm text-stone-500 max-w-sm">
+                  Create your first organization to start managing classes and inviting students.
+                </p>
+                <button
+                  onClick={() => setCreateOpen(true)}
+                  className="mt-2 inline-flex items-center gap-2 px-6 py-2.5 bg-[#EA580C] hover:bg-[#C2410C] text-white text-sm font-semibold rounded-full transition"
+                >
+                  <Plus className="w-4 h-4" />
+                  Create your first workspace
+                </button>
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-bold text-stone-900">You're not in any organization yet</h3>
+                <p className="text-sm text-stone-500 max-w-sm">
+                  Ask your teacher for a class invite link or join code to get started.
+                </p>
+                <button
+                  onClick={() => navigate('/app/dashboard')}
+                  className="mt-2 inline-flex items-center gap-2 px-6 py-2.5 bg-[#EA580C] hover:bg-[#C2410C] text-white text-sm font-semibold rounded-full transition"
+                >
+                  Go to dashboard
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <>

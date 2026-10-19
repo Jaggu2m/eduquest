@@ -15,7 +15,7 @@ interface AuthContextType {
   isTeacher: boolean;
   isStudent: boolean;
   isAdmin: boolean;
-  login: (payload: LoginPayload) => Promise<void>;
+  login: (payload: LoginPayload) => Promise<Organization[]>;
   register: (payload: RegisterPayload) => Promise<void>;
   logout: () => void;
   setSelectedOrg: (org: Organization) => void;
@@ -109,7 +109,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initAuth();
   }, []);
 
-  const login = async (payload: LoginPayload) => {
+  const login = async (payload: LoginPayload): Promise<Organization[]> => {
     const data = await authService.login(payload);
     setUser(data.user);
     const orgs = await loadOrganizations();
@@ -117,6 +117,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSelectedOrg(orgs[0]);
       await loadClasses(orgs[0].id);
     }
+    return orgs;
   };
 
   const register = async (payload: RegisterPayload) => {
