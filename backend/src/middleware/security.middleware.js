@@ -33,6 +33,12 @@ export const csrfProtection = (req, res, next) => {
     return next();
   }
 
+  // Auth endpoints (login, register) produce tokens rather than consuming
+  // ambient credentials, so they are inherently immune to CSRF attacks.
+  if (req.path.startsWith('/auth/')) {
+    return next();
+  }
+
   const originHeader = req.headers['origin'];
   const refererHeader = req.headers['referer'];
   let requestOrigin = originHeader || null;

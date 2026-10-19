@@ -12,6 +12,9 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // Proxy is only used when VITE_API_URL is NOT set (pure local dev).
+    // When .env defines VITE_API_URL, Axios calls the deployed backend directly
+    // and these proxy rules are bypassed entirely.
     proxy: {
       '/api': {
         target: 'http://localhost:3000',
